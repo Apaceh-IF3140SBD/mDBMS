@@ -3,7 +3,7 @@ from typing import List, Optional
 
 @dataclass
 class QueryTree:
-    qtype: str
+    type: str
     val: str
     childs: List['QueryTree']
     parent: Optional['QueryTree']

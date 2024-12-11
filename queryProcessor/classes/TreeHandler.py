@@ -51,7 +51,7 @@ class TreeHandler:
             }
         }
         """
-    def proccess_node(self, query_tree: QueryTree):
+    def process_node(self, query_tree: QueryTree, transaction_id: int):
         handlers = {
             "PROJECTION": self._handle_projection,
             "TABLE": self._handle_table,
@@ -62,11 +62,11 @@ class TreeHandler:
             "CREATE": self._handle_create,
             "INSERT": self._handle_insert,
         }
-        handler = handlers.get(query_tree.qtype.upper())
+        handler = handlers.get(query_tree.type.upper())
         if handler:
-            return handler(query_tree)
+            return handler(query_tree, transaction_id)
         else:
-            raise ValueError(f"Unsupported command: {query_tree.qtype}")
+            raise ValueError(f"Unsupported command: {query_tree.type}")
 
     """
         projection:
@@ -74,9 +74,9 @@ class TreeHandler:
             child: 1 node lain 
     """
     
-    def _handle_projection(self, query_tree: QueryTree):
+    def _handle_projection(self, query_tree: QueryTree, transaction_id: int):
         child = list(query_tree.childs)
-        child = self.proccess_node(child[0])
+        child = self.process_node(child[0], transaction_id)
         child_table_names = list(child.keys())
         child_data = child[child_table_names[0]]
         new_data = child_data
@@ -103,7 +103,9 @@ class TreeHandler:
 
         # column filtering
         if query_tree.val["attributes"]:
+
             attributes_with_table, attributes_without_table = split_dot_contained_data(query_tree.val["attributes"])
+
 
             # processing with table
             selected_attr_indices = [
@@ -114,6 +116,8 @@ class TreeHandler:
 
             # processing without table
             for attr in attributes_without_table:
+                if attr == "*":
+                    break
                 if attr not in child_data["nonambiguous"]:
                     raise Exception("Ambiguous column: " + attr)
                 for col_name in child_data["header"]:
@@ -129,7 +133,7 @@ class TreeHandler:
         
         return new_data
 
-    def _handle_table(self, query_tree: QueryTree):
+    def _handle_table(self, query_tree: QueryTree, transaction_id: int):
         table_name = query_tree.val["table_name"]
         table_alias = query_tree.val.get("table_alias", table_name)
 
@@ -153,7 +157,7 @@ class TreeHandler:
 
         return output
 
-    def _handle_table_as_rows(self, query_tree: QueryTree) -> Rows:
+    def _handle_table_as_rows(self, query_tree: QueryTree, transaction_id: int) -> Rows:
         table_name = query_tree.val["table_name"]
 
         data_retrieval = DataRetrieval(
@@ -188,9 +192,9 @@ class TreeHandler:
             ]
     """
     
-    def _handle_selection(self, query_tree: QueryTree):
+    def _handle_selection(self, query_tree: QueryTree, transaction_id: int):
         child = list(query_tree.childs)
-        child = self.proccess_node(child[0])
+        child = self.process_node(child[0], transaction_id)
         child_table_names = list(child.keys())
         child_data = child[child_table_names[0]]
         new_data = {}
@@ -243,10 +247,10 @@ class TreeHandler:
             "conditions": ["students.fullname", "=", "13"],[]
     """
 
-    def _handle_join(self, query_tree: QueryTree):
+    def _handle_join(self, query_tree: QueryTree, transaction_id: int):
         childs = list(query_tree.childs)
-        table1 = self.proccess_node(childs[0])
-        table2 = self.proccess_node(childs[1])
+        table1 = self.process_node(childs[0], transaction_id)
+        table2 = self.process_node(childs[1], transaction_id)
         conditions = query_tree.val["conditions"]
 
         table1_name = list(table1.keys())[0]

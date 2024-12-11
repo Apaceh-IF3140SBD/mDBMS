@@ -70,11 +70,12 @@ from server.Server import ServerRunner
 # This should output something like <class '...ProjectionSimplification'>
 
 
+
 if __name__ == "__main__":
     # from queryOptimizer.classes.optimizerRule import ProjectionSimplification
     # print(ProjectionSimplification())    
      
-    ServerRunner().run(QueryProcessor())
+    ServerRunner().run(QueryProcessor)
 
 
 
