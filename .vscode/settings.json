@@ -1,0 +1,12 @@
+{
+    "python.analysis.extraPaths": [
+      "classes",
+      "sbd-storage",
+      "./processor",
+      "./processor/classes",
+      "./storage",
+      "./storage/core",
+      "./storage/utils"
+    ]
+  }
+  

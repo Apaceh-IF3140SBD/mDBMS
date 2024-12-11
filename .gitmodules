@@ -1,0 +1,15 @@
+[submodule "storage"]
+	path = storage
+	url = https://github.com/Apaceh-IF3140SBD/sbd-express-storage-manager.git
+[submodule "fRecovery"]
+	path = fRecovery
+	url = https://github.com/Apaceh-IF3140SBD/failure-recovery.git
+[submodule "ccManager"]
+	path = ccManager
+	url = https://github.com/Apaceh-IF3140SBD/concurrency-control.git
+[submodule "optimizer"]
+	path = optimizer
+	url = https://github.com/Apaceh-IF3140SBD/query-optimizer.git
+[submodule "processor"]
+	path = processor
+	url = https://github.com/Apaceh-IF3140SBD/query-processor.git
