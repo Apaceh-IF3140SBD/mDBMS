@@ -1,0 +1,3 @@
+[submodule "sbd-storage"]
+	path = sbd-storage
+	url = https://github.com/Apaceh-IF3140SBD/sbd-express-storage-manager.git
