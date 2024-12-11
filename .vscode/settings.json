@@ -6,7 +6,9 @@
       "./processor/classes",
       "./storage",
       "./storage/core",
-      "./storage/utils"
+      "./storage/utils",
+      "./queryOptimizer/classes",
+      "./queryOptimizer/classes"
     ]
   }
   

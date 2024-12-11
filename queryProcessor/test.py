@@ -1,11 +1,11 @@
-from storageManager.core.BufferManager import BufferManager
-from storageManager.core.StorageEngine import StorageEngine
-from storageManager.core.TableSchema import TableSchema
-from classesManager.QueryProcessor import QueryProcessor
-from storageManager.functions.Condition import Condition
-from storageManager.functions.DataWrite import DataWrite
-from storageManager.functions.DataRetrieval import DataRetrieval
-from storageManager.functions.DataDeletion import DataDeletion
+from storage.core.BufferManager import BufferManager
+from storage.core.StorageEngine import StorageEngine
+from storage.core.TableSchema import TableSchema
+from classes.QueryProcessor import QueryProcessor
+from storage.functions.Condition import Condition
+from storage.functions.DataWrite import DataWrite
+from storage.functions.DataRetrieval import DataRetrieval
+from storage.functions.DataDeletion import DataDeletion
 import random
 
 
