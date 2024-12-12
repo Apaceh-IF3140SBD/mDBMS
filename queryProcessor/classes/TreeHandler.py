@@ -62,6 +62,7 @@ class TreeHandler:
             "CREATE": self._handle_create,
             "INSERT": self._handle_insert,
         }
+        print("sapi: ",query_tree.childs, query_tree.val, query_tree.type)
         handler = handlers.get(query_tree.type.upper())
         if handler:
             return handler(query_tree, transaction_id)
@@ -75,11 +76,16 @@ class TreeHandler:
     """
     
     def _handle_projection(self, query_tree: QueryTree, transaction_id: int):
-        child = list(query_tree.childs)
-        child = self.process_node(child[0], transaction_id)
+        print("1")
+        child = self.process_node(query_tree.childs[0], transaction_id)
+        print("2")
         child_table_names = list(child.keys())
+        print("3")
         child_data = child[child_table_names[0]]
+        print("4")
         new_data = child_data
+
+        print(new_data)
 
         # order
         if query_tree.val["ORDER BY"]:
@@ -106,18 +112,11 @@ class TreeHandler:
 
             attributes_with_table, attributes_without_table = split_dot_contained_data(query_tree.val["attributes"])
 
-
-            # processing with table
-            selected_attr_indices = [
-                child_data["header"].index(attr) for attr in 
-                attributes_with_table if attr in child_data["header"]
-            ]
-            new_data["header"] = [child_data["header"][i] for i in selected_attr_indices]
-
             # processing without table
             for attr in attributes_without_table:
                 if attr == "*":
-                    break
+                    new_data["header"] = child_data["header"]
+                    return new_data
                 if attr not in child_data["nonambiguous"]:
                     raise Exception("Ambiguous column: " + attr)
                 for col_name in child_data["header"]:
@@ -127,6 +126,14 @@ class TreeHandler:
                         new_data["header"].append(after_dot)
                         break
 
+            # processing with table
+            selected_attr_indices = [
+                child_data["header"].index(attr) for attr in 
+                attributes_with_table if attr in child_data["header"]
+            ]
+            new_data["header"] = [child_data["header"][i] for i in selected_attr_indices]
+
+            # changing new data by filtering out data without header
             new_data["data"] = [[row[i] for i in selected_attr_indices]for row in child_data["data"]]
         
         new_data["data"] = remove_duplicates(new_data["data"])
@@ -216,7 +223,15 @@ class TreeHandler:
                     except (ValueError, IndexError) as e:
                         rightSide = condition[2]
                     
-                    
+                    # try convert to int
+                    try:
+                        int_leftside = int(leftSide)
+                        int_rightSide = int(rightSide)
+                        leftSide = int_leftside
+                        rightSide = int_rightSide
+                    except ValueError as e:
+                        pass
+                        
                     # case: <, =, >, <=, >=
                     # handle NULL?
                     if condition[1] == '=':
@@ -229,7 +244,7 @@ class TreeHandler:
                         and_conditions_fulfilled = and_conditions_fulfilled and  leftSide >= rightSide
                     elif condition[1] == '<=':
                         and_conditions_fulfilled = and_conditions_fulfilled and  leftSide <= rightSide
-                    elif condition[1] == '!=':
+                    elif condition[1] == '<>':
                         and_conditions_fulfilled = and_conditions_fulfilled and  leftSide != rightSide
 
                 conditions_fulfilled = conditions_fulfilled or  and_conditions_fulfilled
