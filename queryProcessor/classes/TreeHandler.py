@@ -491,7 +491,7 @@ class TreeHandler:
             try: 
                 new_value = row[columns.index(set_value[0])]
             except (ValueError, IndexError) as e:
-                leftSide = set_value[0]
+                new_value = set_value[0]
             for i, value in enumerate(set_value):
                 if i == 0 or i%2 == 1:
                     continue

@@ -28,7 +28,8 @@ class TimestampBasedConcurrencyControlManager(CCManager):
                 raise ValueError(f"Transaction {transaction_id} not found.")
 
             for record in row.data:
-                record_id = hash(record)
+                record_tuple = tuple(record)
+                record_id = hash(record_tuple)
                 if record_id not in self.timestamps:
                     self.timestamps[record_id] = {"read_ts": 0, "write_ts": 0}
                 print(
@@ -43,7 +44,9 @@ class TimestampBasedConcurrencyControlManager(CCManager):
         transaction = self.transactions[transaction_id]
 
         for record in row.data:
-            record_id = hash(record)
+            
+            record_tuple = tuple(record)
+            record_id = hash(record_tuple)
 
             if record_id not in self.timestamps:
                 self.log_object(
@@ -73,7 +76,9 @@ class TimestampBasedConcurrencyControlManager(CCManager):
         with self.lock:
             for record in row.data:
                 # Replace with a stable identifier as discussed
-                record_id = hash(record)
+                
+                record_tuple = tuple(record)
+                record_id = hash(record_tuple)
 
                 if action == Action.READ:
                     self.timestamps[record_id]["read_ts"] = max(
