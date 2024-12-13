@@ -9,6 +9,7 @@ from queryOptimizer.classes.optimizerRule import ProjectionDistribution
 from queryOptimizer.classes.optimizerRule import SelectionCommutative
 from queryOptimizer.classes.optimizerRule import ConjungtiveSelection
 from queryOptimizer.classes.optimizerRule import SelectionDistribution
+from queryOptimizer.classes.QueryCost import QueryCost
 import re
 
 rules = [
@@ -38,37 +39,36 @@ class OptimizationEngine:
         # print(parsed_query)
         tree = TreeManager(self.storage,self.schemas)
         query = tree.parse_tree_to_dict(parsed_query)
+        # print(query)
         return tree.convert_tree(query)
     
     def optimize_query(self, query: str)->ParsedQuery:
         query_tree = self.parse_query(query)
 
-        print('before optimize query')
         tree = TreeManager(self.storage,self.schemas)
-        tree.display_tree(query_tree, 0)
+        # tree.display_tree(query_tree, 0)
+        # cost = self.get_cost(query_tree)
 
         optimizer = GeneticOptimizer(
             query_tree=query_tree,
             rules=rules,
             population_size=20,
-            max_generations=50,
-            mutation_rate=0.1
+            max_generations=10,
+            mutation_rate=0.1,
+            schemas=self.schemas,
+            storage=self.storage
         )
 
         best_solution = optimizer.optimize()
         for rule in best_solution:
             rule.apply_rule(query_tree)
-            # print(rule)
-            # tree.display_tree(query_tree, 0)
 
-        print('after optimized query')
 
-        # projection_simplification = SelectionDistribution()
-        # optimized_query = projection_simplification.apply_rule(query_tree)
-        tree.display_tree(query_tree, 0)
+        # tree.display_tree(query_tree, 0)
+        # cost = self.get_cost(query_tree)
+        # print(cost)
         return query_tree
     
-    def get_cost(self, query)->int:
-
-        return 0
-    
+    def get_cost(self, parsed_query: ParsedQuery) -> int:
+        cost = QueryCost(self.schemas,self.storage)
+        return cost.get_cost(parsed_query)
