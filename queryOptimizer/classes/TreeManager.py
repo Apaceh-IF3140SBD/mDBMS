@@ -82,8 +82,9 @@ class TreeManager:
                 node.type = "insert"
                 values_index = detail.index('VALUES')
                 valuecol = detail[:values_index]  
-                valuevals = detail[values_index + 1:]   
-                node.val["attributes"] = valuecol[1:] 
+                node.val["table"] = detail[1]
+                valuevals = detail[values_index + 1:]
+                node.val["attributes"] = valuecol[2:] 
                 val_column = []
                 for i, column in enumerate(valuevals):
                     try:
