@@ -177,7 +177,7 @@ class TreeHandler:
 
         # cc
 
-        self.concurrency_control.log_object(Rows(data))
+        self.concurrency_control.log_object(Rows(data), transaction_id)
         response = self.concurrency_control.validate_object(Rows(data), transaction_id, Action.READ)
         if not response.allowed:
             self.concurrency_control.end_transaction(transaction_id)
@@ -476,7 +476,7 @@ class TreeHandler:
                 old_data.append(row)
 
         # cc
-        self.concurrency_control.log_object(Rows(old_data))
+        self.concurrency_control.log_object(Rows(old_data), transaction_id)
         response = self.concurrency_control.validate_object(Rows(old_data), transaction_id, Action.WRITE)
         if not response.allowed:
             self.concurrency_control.end_transaction(transaction_id)
@@ -628,7 +628,7 @@ class TreeHandler:
         result = self.storage_engine.select(data_retrieval)
 
         # cc
-        self.concurrency_control.log_object(Rows(result))
+        self.concurrency_control.log_object(Rows(result), transaction_id)
         response = self.concurrency_control.validate_object(Rows(result), transaction_id, Action.WRITE)
         if not response.allowed:
             self.concurrency_control.end_transaction(transaction_id)

@@ -1,12 +1,15 @@
 import random
+from queryOptimizer.classes.QueryCost import QueryCost
 
 class GeneticOptimizer():
-    def __init__(self, query_tree, rules, population_size, max_generations, mutation_rate):
+    def __init__(self, schemas, storage, query_tree, rules, population_size, max_generations, mutation_rate):
         self.population_size = population_size
         self.max_generations = max_generations
         self.mutation_rate = mutation_rate
-        self.query_tree = query_tree  
-        self.rules = rules            
+        self.query_tree = query_tree
+        self.rules = rules
+        self.schemas = schemas
+        self.storage = storage
 
     def initialize_population(self):
         return [random.sample(self.rules, len(self.rules)) for _ in range(self.population_size)]
@@ -15,11 +18,22 @@ class GeneticOptimizer():
         tree_copy = self.query_tree.copy()
         for rule in individual:
             tree_copy = rule.apply_rule(tree_copy)
-        return len(tree_copy.childs)
+        cost = QueryCost(self.schemas, self.storage)
+        return cost.get_cost(tree_copy)
 
     def selection(self, population):
-        population.sort(key=self.calculate_fitness, reverse=True)
-        return population[:self.population_size // 2]
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            future_to_individual = {executor.submit(self.calculate_fitness, ind): ind for ind in population}
+            fitness_results = []
+
+            for future in as_completed(future_to_individual):
+                fitness = future.result()
+                individual = future_to_individual[future]
+                fitness_results.append((individual, fitness))
+
+        fitness_results.sort(key=lambda x: x[1])
+        selected_individuals = [ind for ind, _ in fitness_results[:self.population_size // 2]]
+        return selected_individuals
 
     def crossover(self, parent1, parent2):
         point = random.randint(1, len(parent1) - 1)
@@ -50,5 +64,5 @@ class GeneticOptimizer():
                 for ind in next_population
             ]
 
-        best_individual = max(population, key=self.calculate_fitness)
+        best_individual = min(population, key=self.calculate_fitness)
         return best_individual
