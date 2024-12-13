@@ -10,7 +10,7 @@ from storageManager.utils.DataBlock import DataBlock
 # import os
 
 class BufferManager:
-    def __init__(self, buffer_size: int, schemas: Dict[str, TableSchema]):
+    def __init__(self, buffer_size: int, schemas: Dict[str, TableSchema] = {}):
         self.buffer_size = buffer_size # buffer size means how many blocks could fit in the buffer, just adjust it here
         self.schemas = schemas
         self.buffer_pool: Dict[Tuple[str, int], DataBlock] = {} # current buffer condition (schema_name, block_id)

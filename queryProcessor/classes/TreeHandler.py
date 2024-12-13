@@ -261,7 +261,8 @@ class TreeHandler:
             for and_separated_condition in or_separated_condition:
                 and_conditions_fulfilled = True
                 for condition in and_separated_condition:
-                    try:
+                    print("CONDITIONASDASDASD: ",condition)
+                    try: 
                         leftSide = row[child_data["header"].index(condition[0])]
                     except (ValueError, IndexError) as e:
                         leftSide = condition[0]
@@ -271,13 +272,9 @@ class TreeHandler:
                         rightSide = condition[2]
                     
                     # try convert to int
-                    try:
-                        int_leftside = int(leftSide)
-                        int_rightSide = int(rightSide)
-                        leftSide = int_leftside
-                        rightSide = int_rightSide
-                    except ValueError as e:
-                        pass
+                    if(type(rightSide) == float or type(leftSide) == float):
+                        rightSide = float(rightSide)
+                        leftSide = float(leftSide)
 
                     print("kiri, kanan", leftSide, rightSide)
                         
@@ -318,6 +315,7 @@ class TreeHandler:
 
     def _handle_join(self, query_tree: QueryTree, transaction_id: int):
         childs = list(query_tree.childs)
+        print("SIGMA BOY",childs)
         table1 = self.process_node(childs[0], transaction_id)
         table2 = self.process_node(childs[1], transaction_id)
 
@@ -339,9 +337,10 @@ class TreeHandler:
                         sorted_join_conditions.append([i,j])
         else:
             # not natural
-            conditions = query_tree.val["conditions"][0]
-            # Sort join conditions to determine column indices
-            sorted_join_conditions = self._sort_join_conditions(headers1, headers2, conditions)
+            if "conditions" in query_tree.val:
+                conditions = query_tree.val["conditions"][0]
+                # Sort join conditions to determine column indices
+                sorted_join_conditions = self._sort_join_conditions(headers1, headers2, conditions)
 
         # Create joined headers
         joined_headers = headers1 + headers2
@@ -358,15 +357,21 @@ class TreeHandler:
                 if match:
                     joined_data.append(leftside_row + rightside_row)
 
-        
-        new_nonambiguous = [
-            x for x in (table1[table1_name]["nonambiguous"] + table2[table2_name]["nonambiguous"])
-            if (x in table1[table1_name]["nonambiguous"]) ^ (x in table2[table2_name]["nonambiguous"])
-        ]
+        if query_tree.val["natural"]:        
+            new_nonambiguous = [
+                x for x in (table1[table1_name]["nonambiguous"] + table2[table2_name]["nonambiguous"])
+                if (x in table1[table1_name]["nonambiguous"]) ^ (x in table2[table2_name]["nonambiguous"])
+            ]
 
-        for condition in conditions:
-            if condition[0].split('.')[1] == condition[2].split('.')[1]:
-                new_nonambiguous.append(condition[0].split('.')[1])
+            for condition in conditions:
+                if condition[0].split('.')[1] == condition[2].split('.')[1]:
+                    new_nonambiguous.append(condition[0].split('.')[1])
+                    
+        else:
+            new_nonambiguous = [
+                x for x in (table1[table1_name]["nonambiguous"] + table2[table2_name]["nonambiguous"])
+            ]
+            new_nonambiguous = remove_duplicates(new_nonambiguous)
         
         # Return the joined result
         return {

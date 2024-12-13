@@ -35,7 +35,7 @@ class TableSchema:
 
         return bin_schema
 
-    # funciton from_bytes to read binary_data to SchemaInfo
+    # function from_bytes to read binary_data to TableSchema
     # reverse action from to_bytes
     @staticmethod
     def from_bytes(binary_data):
