@@ -33,16 +33,16 @@ class QueryProcessor(ServerHandler):
         print(f"Connection established with {self.client_address}")
 
         try:
-            while True:
-                print("Instance:", QueryProcessor.sequence)
-                data = self.request.recv(1024).decode('utf-8').strip()
-                print(f"Received request: {data}")
-
-                result = self.execute_query(data)
-
-                response_json = json.dumps(result)
-                self.request.sendall(response_json.encode('utf-8'))
-
+            print("Instance:", QueryProcessor.sequence)
+            data = self.request.recv(100*1024).decode('utf-8').strip()
+            print(f"Received request: {data}")
+            query = json.loads(data)
+            transaction_id = -3
+            if "transaction_id" in query:
+                transaction_id = int(query["transaction_id"])
+            result = self.execute_query(query["query"], transaction_id)
+            response_json = json.dumps(result)
+            self.request.sendall(response_json.encode('utf-8'))
 
             # person_data = fruit_mapping.get(data)
             # if person_data:
@@ -65,9 +65,11 @@ class QueryProcessor(ServerHandler):
             
 
     def execute_query(self, query: str, transaction_id: int):
+        print("Qwerty")
         try:
             if query.lower()  == "begin transaction" or query.lower()  == "start transaction":
                 if transaction_id < -1:
+                    print("START")
                     return {}, self.concurrency_control.begin_transaction()
                 else:
                     return {}, transaction_id
