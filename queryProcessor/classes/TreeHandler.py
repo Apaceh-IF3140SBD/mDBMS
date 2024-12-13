@@ -1,6 +1,13 @@
+from datetime import datetime
 from queryProcessor.classes.QueryTree import QueryTree
 from queryProcessor.classes.Rows import Rows
+from concurrencyControl.Utils import Action
 from queryProcessor.functions.Helper import remove_duplicates, split_dot_contained_data
+from concurrencyControl.CCWrapper import ConcurrencyControlWrapper
+from failureRecovery.functions.DataPass import DataPass
+from failureRecovery.core.FailureRecovery import FailureRecovery
+from failureRecovery.functions.RecoverCriteria import RecoverCriteria
+from failureRecovery.functions.ExecutionResult import ExecutionResult
 from storageManager.core.TableSchema import TableSchema
 from storageManager.core.StorageEngine import StorageEngine
 from storageManager.functions.DataWrite import DataWrite
@@ -9,8 +16,10 @@ from storageManager.functions.Condition import Condition
 from storageManager.functions.DataDeletion import DataDeletion
 
 class TreeHandler:
-    def __init__(self, storage_engine: StorageEngine):
+    def __init__(self, storage_engine: StorageEngine, concurrency_control:ConcurrencyControlWrapper, failure_recovery: FailureRecovery):
         self.storage_engine = storage_engine
+        self.concurrency_control = concurrency_control
+        self.failure_recovery = failure_recovery
 
         """
         experimental
@@ -165,6 +174,14 @@ class TreeHandler:
         nonambiguous = columns
         result = self.storage_engine.select(data_retrieval)
         data = result
+
+        # cc
+
+        self.concurrency_control.log_object(Rows(data))
+        response = self.concurrency_control.validate_object(Rows(data), transaction_id, Action.READ)
+        if not response.allowed:
+            abortion = RecoverCriteria(None, transaction_id)
+            self.failure_recovery.recover(abortion)
         
         converted_data = []
         for row in data:
@@ -388,6 +405,23 @@ class TreeHandler:
     def _handle_update(self, query_tree:QueryTree, transaction_id: int):
         table_name = query_tree.val["table_name"]
 
+        columns = list(self.storage_engine.schemas[table_name].columns.keys())
+
+        data_retrieval = DataRetrieval(
+            table=query_tree.val["table"][0],
+            columns=columns,
+            conditions=[query_tree.val["conditions"]],
+        )
+        result = self.storage_engine.select(data_retrieval)
+        header  = [column for column in columns]
+        
+        for row in result:
+            for set in query_tree.val["set"]:
+                
+
+
+        table_name = query_tree.val["table_name"]
+
         data_retrieval = DataRetrieval(
             table=query_tree.val["table_name"],
             columns=[],
@@ -425,32 +459,29 @@ class TreeHandler:
     def _handle_delete(self, query_tree:QueryTree, transaction_id: int):
         table_name = query_tree.val["table_name"]
 
+        columns = list(self.storage_engine.schemas[table_name].columns.keys())
+
         data_retrieval = DataRetrieval(
-            table=query_tree.val["table_name"],
-            columns=[],
-            conditions=[],
+            table=query_tree.val["table"][0],
+            columns=columns,
+            conditions=[query_tree.val["conditions"]],
         )
         result = self.storage_engine.select(data_retrieval)
-        header  = [f"{column}" for column in result["columns"]]
+        header  = [column for column in columns]
 
-        data = result["data"]
+        # cc
+        self.concurrency_control.log_object(Rows(result))
+        response = self.concurrency_control.validate_object(Rows(result), transaction_id, Action.WRITE)
+        if not response.allowed:
+            abortion = RecoverCriteria(None, transaction_id)
+            self.failure_recovery.recover(abortion)
 
-        data_before = {
-            table_name: {
-                "header": header,
-                "data": data,
-            }
-        }
-        data_after = data_before
-
-        # minta log ke cc
-
-        # make changes
-        data_after[table_name]["data"] = []
-
-        # minta ijin ubah ke cc
-
-        # sesuailam format dan minta ubah ke failure
+        data_pass_before = DataPass(
+            "apache", table_name, columns, result, todo= None
+        )
+        data_pass_after = None
+        execution_result = ExecutionResult(transaction_id= transaction_id,timestamp= datetime.now(), message= "DELETE", data_before= data_pass_before, data_after= data_pass_after, query= "DELETE")
+        self.failure_recovery.write_log(execution_result)
 
     def _handle_create(self, query_tree:QueryTree, transaction_id: int):
         table = query_tree.val["table"]

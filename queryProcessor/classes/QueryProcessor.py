@@ -78,23 +78,22 @@ class QueryProcessor(ServerHandler):
                 else:
                     if transaction_id >= 0:           
                         # satu perintah dalam transaction
-                        query_optimizer = OptimizationEngine(storageEngine=StorageEngine)
+                        query_optimizer = OptimizationEngine(self.storage_engine, {})
                         parsed_query = query_optimizer.parse_query(query)
                         optimized_query = query_optimizer.optimize_query(parsed_query)
-                        tree_handler = TreeHandler(self.storage_engine)
+                        tree_handler = TreeHandler(self.storage_engine, self.concurrency_control, self.failure_recovery)
                         result = tree_handler.proccess_node(optimized_query, transaction_id)
                         return result, transaction_id
                     else:
                         # satu perintah utuh langsung titik koma
                         transaction_id = self.concurrency_control.begin_transaction()
-                        self.transaction_statuss = True
                         query_optimizer = OptimizationEngine(self.storage_engine, {})
                         parsed_query = query_optimizer.parse_query(query)
                         optimized_query = query_optimizer.optimize_query(query)
                         print("ADASDASD", optimized_query)
                         print("After optimization")
                         tree_handler = TreeHandler(self.storage_engine)
-                        result = tree_handler.process_node(optimized_query, transaction_id)
+                        result = tree_handler.process_node(optimized_query, self.concurrency_control, transaction_id)
                         self.concurrency_control.end_transaction(transaction_id)
                         print(result)
                         return result, -2
