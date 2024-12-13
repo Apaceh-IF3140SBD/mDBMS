@@ -1,4 +1,4 @@
-from queryOptimizer.classes.Query import QueryTree
+from Query import QueryTree
 from storageManager.core.StorageEngine import StorageEngine
 import copy
 
@@ -13,6 +13,7 @@ class TreeManager:
     def __init__(self,storageEngine, schemas):
         self.storage = storageEngine
         self.schemas = schemas
+        self.astable = {} # nyimpen as table
 
     def convert_tree(self, query: dict):
         tree_node = {}
@@ -21,6 +22,7 @@ class TreeManager:
         for command, detail in query.items():
             node = QueryTree()
             node.val = {}
+            table_col = {}
             if command == "SELECT":
                 node.type = "projection"
                 # node.val = command
@@ -32,15 +34,25 @@ class TreeManager:
                         node.childs.append(sub_tree)
                     else:
                         table_name = self.check_attribute_table(column)
-                        tables_col = {table_name : column }
-          
+                        if "." in column:
+                            value = column.split('.')[0]
+                            value2 = column.split('.')[1]
+                            table_name = value
+                            column = value2
+
+                        if table_col and table_col.get(table_name)!=None:
+                            column_list = table_col.get(table_name)
+                            column_list.append(column)
+                            table_col.update({table_name: column_list})
+                        else:
+                            table_col[table_name] = [column]
+                        
+
                         if table_name!=None:
-                            if node.val:
-                                column_list = node.val.get("attributes")
-                                column_list.append(tables_col)
-                                node.val.update({"attributes": column_list})
+                            if node.val and node.val.get("attributes"):
+                                node.val.update({"attributes": table_col})
                             else:
-                                node.val["attributes"] = [tables_col] 
+                                node.val["attributes"] = [table_col] 
                         else:
                             # node.childs.append(attribute)
                             if node.val:
@@ -60,16 +72,50 @@ class TreeManager:
                 stmt_type = command
             elif command == "CREATE":
                 node.type = "create"
-                node.val["value"] = detail  
+                set_column = []
+                for i, column in enumerate(detail):
+                    try:
+                        numeric_value = float(column)
+                        if numeric_value.is_integer():
+                            numeric_value = int(numeric_value)
+                        set_column.append(numeric_value)
+                    except ValueError:
+                        if len(column) > 1 and ((column[0] == "'" and column[-1] == "'") or (column[0] == '"' and column[-1] == '"')):
+                            column = column[1:-1]
+                        set_column.append(column)
+                node.val["value"] = set_column  
                 stmt_type = command
             elif command == "INSERT":
                 node.type = "insert"
-                node.val["value"] = detail  
+                values_index = detail.index('VALUES')
+                valuecol = detail[:values_index]  
+                valuevals = detail[values_index + 1:]   
+                node.val["attributes"] = valuecol[1:] 
+                val_column = []
+                for i, column in enumerate(valuevals):
+                    try:
+                        numeric_value = float(column)
+                        if numeric_value.is_integer():
+                            numeric_value = int(numeric_value)
+                        val_column.append(numeric_value)
+                    except ValueError:
+                        if len(column) > 1 and ((column[0] == "'" and column[-1] == "'") or (column[0] == '"' and column[-1] == '"')):
+                            column = column[1:-1]
+                        val_column.append(column)
+                node.val["values"] = val_column  
                 stmt_type = command
             elif command == "SET":
                 set_column = []
                 for i, column in enumerate(detail):
-                    set_column.append(column)
+                    try:
+                        numeric_value = float(column)
+                        if numeric_value.is_integer():
+                            numeric_value = int(numeric_value)
+                        set_column.append(numeric_value)
+                    except ValueError:
+                        if len(column) > 1 and ((column[0] == "'" and column[-1] == "'") or (column[0] == '"' and column[-1] == '"')):
+                            column = column[1:-1]
+                        set_column.append(column)
                 tree_node["UPDATE"].val["set"] = set_column
             elif command == "FROM" or command == "JOIN" or command == "NATURAL":
                 node.type = "join" if command == "JOIN" or command == "NATURAL" else "from"
@@ -245,6 +291,12 @@ class TreeManager:
                         table_name = self.check_attribute_table(column)
                         if(table_name is not None):
                             column = table_name + "." + column
+                        elif "." in column:
+                            value = column.split('.')[0]
+                            value2 = column.split('.')[1]
+                            if value in self.astable:
+                                realtable = self.astable[value]
+                                column = realtable + "." + value2
                         list.append(column)
                 if (list[-1][0]=="'" and list[-1][-1]=="'") or (list[-1][0]=="\"" and list[-1][-1]=="\""):
                     list[-1] = list[-1][1:-1]
@@ -264,19 +316,13 @@ class TreeManager:
                 else: 
                     tree_node[parent].childs.append(node)
             elif command == "ORDER BY":
-                # node.parent = tree_node["SELECT"]
                 order_column = []
                 for column in detail:
-                    # attribute = QueryTree("attribute_order", column, None, node)
-                    # node.parent.childs.append(attribute)
                     order_column.append(column)
                 tree_node["SELECT"].val[command] = order_column
             elif command == "LIMIT":
-                # node.parent = tree_node["SELECT"]
                 order_column = []
                 for column in detail:
-                    # attribute = QueryTree("limit_value", column, None, node)
-                    # node.parent.childs.append(attribute)
                     order_column.append(int(column))
                 tree_node["SELECT"].val[command] = order_column
             tree_node[command] = node
@@ -288,11 +334,11 @@ class TreeManager:
         idx = 0
 
         while idx < len(parsed_query):
-            if parsed_query[idx] in command_list:
-                key = parsed_query[idx]
+            if parsed_query[idx].upper() in command_list:
+                key = parsed_query[idx].upper() 
                 value = []
                 idx += 1
-                while (idx < len(parsed_query)) and (parsed_query[idx] not in command_list):
+                while (idx < len(parsed_query)) and (parsed_query[idx].upper() not in command_list):
                     if parsed_query[idx] == "(":
                         # Handle subquery
                         subquery = []
@@ -304,7 +350,7 @@ class TreeManager:
                             elif parsed_query[idx] == ")":
                                 balance -= 1
                             if balance > 0: 
-                                if len(subquery)==0 and parsed_query[idx] not in command_list:
+                                if len(subquery)==0 and parsed_query[idx].upper() not in command_list:
                                     value.append(parsed_query[idx])
                                 else:
                                     subquery.append(parsed_query[idx])
@@ -338,7 +384,22 @@ class TreeManager:
             value = query_detail['FROM'].copy()
             del query_detail['FROM']
             items = list(query_detail.items())
-            items.append(('FROM', value)) 
+            temp = []
+            i=0
+            while i < len(value):
+                if i+2<len(value):
+                    if value[i+1] =="AS" or value[i+1] =="as":
+                        self.astable[value[i+2]] = value[i]
+                        temp.append(value[i])
+                        i+=3
+                    else:
+                        temp.append(value[i])
+                        i+=1
+                else:
+                    temp.append(value[i])
+                    i+=1
+
+            items.append(('FROM', temp)) 
             query_detail = dict(items)
         
         if "LIMIT" in list(query_detail.keys()):
@@ -358,7 +419,6 @@ class TreeManager:
         return query_detail
 
     def display_tree(self, tree: "QueryTree", depth: int):
-        # print(tree)
         if tree.val:
             print(f"{'--' * depth}{tree.val} {tree.type}")
 

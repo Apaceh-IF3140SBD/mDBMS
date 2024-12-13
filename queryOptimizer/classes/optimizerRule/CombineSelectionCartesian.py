@@ -3,7 +3,7 @@ from queryOptimizer.classes.Query import QueryTree
 
 # RULES 4
 class CombineSelectionCartesian(OptimizerRule):
-    def apply_rule(self, querytree: QueryTree, selection=None, selection_node=None) -> QueryTree:
+    def apply_rule(self, querytree: QueryTree, selection=None) -> QueryTree:
         if not querytree.childs:
             return querytree
 
@@ -17,25 +17,26 @@ class CombineSelectionCartesian(OptimizerRule):
 
             if querytree.childs[0].type == "join" and  querytree.childs[0].val['natural'] == False:
                 querytree.childs[0] = self._rebuild_joins(querytree.childs[0], selection)
-            if querytree.childs[0].type == "table" and querytree.childs[1].type == "table":
+            if len(querytree.childs)>1 and querytree.childs[0].type == "table" and querytree.childs[1].type == "table":
                 newchild = self._rebuild_joins2(querytree, selection)
                 querytree.childs.clear()
                 querytree.childs.append(newchild)
-
+            if (len(querytree.val["conditions"])>0 and len(querytree.val["conditions"][0])==0):
+                del querytree.val["conditions"][0]
 
         return querytree
     
     def _rebuild_joins(self, node, selection) -> list[QueryTree]:
         for child in  node.childs:
-            if child.type == "table":  
-                for sel in selection[0]: 
-                    value = sel[0].split('.')[0]
-                    print(value, child.val)
-                    if child.val == value:
-                        node.val['conditions'][0].append(sel)
-                        selection[0].remove(sel)
+            if child.type == "table": 
+                if len(selection)>0: 
+                    for sel in selection[0]: 
+                        value = sel[0].split('.')[0]
+                        print(value, child.val)
+                        if child.val == value:
+                            node.val['conditions'][0].append(sel)
+                            selection[0].remove(sel)
                         
-
         return node 
     
     # for cartesian products

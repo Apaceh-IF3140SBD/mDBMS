@@ -1,16 +1,16 @@
 import sys
 import os
 
-sys.path.append(os.path.join(os.path.dirname(__file__), 'sbd-storage'))
+sys.path.append(os.path.join(os.path.dirname(__file__), '../storageManager'))
 sys.path.append(os.path.join(os.path.dirname(__file__), 'classes'))
 
-from core.BufferManager import BufferManager
-from core.StorageEngine import StorageEngine
-from core.TableSchema import TableSchema
-from functions.Condition import Condition
-from functions.DataWrite import DataWrite
-from functions.DataRetrieval import DataRetrieval
-from functions.DataDeletion import DataDeletion
+from storageManager.core.BufferManager import BufferManager
+from storageManager.core.StorageEngine import StorageEngine
+from storageManager.core.TableSchema import TableSchema
+from storageManager.functions.Condition import Condition
+from storageManager.functions.DataWrite import DataWrite
+from storageManager.functions.DataRetrieval import DataRetrieval
+from storageManager.functions.DataDeletion import DataDeletion
 import random
 from Query import ParsedQuery, QueryTree
 from TreeManager import TreeManager

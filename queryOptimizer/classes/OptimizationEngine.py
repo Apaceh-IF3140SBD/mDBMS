@@ -7,15 +7,19 @@ from queryOptimizer.classes.optimizerRule import CombineSelectionCartesian
 from queryOptimizer.classes.optimizerRule import ThetaJoinCommutative
 from queryOptimizer.classes.optimizerRule import ProjectionDistribution
 from queryOptimizer.classes.optimizerRule import SelectionCommutative
+from queryOptimizer.classes.optimizerRule import ConjungtiveSelection
+from queryOptimizer.classes.optimizerRule import SelectionDistribution
 import re
 
 rules = [
-    ProjectionSimplification.ProjectionSimplification(),
-    NaturalJoinCommutative.NaturalJoinCommutative(),
-    CombineSelectionCartesian.CombineSelectionCartesian(),
-    ProjectionDistribution.ProjectionDistribution(),
-    ThetaJoinCommutative.ThetaJoinCommutative(),
-    SelectionCommutative.SelectionCommutative()
+    ProjectionSimplification(),
+    NaturalJoinCommutative(),
+    CombineSelectionCartesian(),
+    ProjectionDistribution(),
+    ThetaJoinCommutative(),
+    SelectionCommutative(),
+    ConjungtiveSelection(),
+    SelectionDistribution()
 ]
 
 
@@ -25,7 +29,10 @@ class OptimizationEngine:
         self.schemas = schemas
 
     def parse_query(self, query: str)->ParsedQuery:
-        query = re.sub(r'([();])', r' \1 ', query)
+        query = re.sub(r'(<>|[<>]=?|=|[();*])', r' \1 ', query)
+        query = re.sub(r'\s{2,}', ' ', query).strip() 
+
+
         clear_query = query.replace(",", " ")
         parsed_query = re.findall(r'\S+', clear_query)
         # print(parsed_query)
@@ -51,10 +58,12 @@ class OptimizationEngine:
         best_solution = optimizer.optimize()
         for rule in best_solution:
             rule.apply_rule(query_tree)
+            # print(rule)
+            # tree.display_tree(query_tree, 0)
 
         print('after optimized query')
 
-        # projection_simplification = SelectionCommutative()
+        # projection_simplification = SelectionDistribution()
         # optimized_query = projection_simplification.apply_rule(query_tree)
         tree.display_tree(query_tree, 0)
         return query_tree
