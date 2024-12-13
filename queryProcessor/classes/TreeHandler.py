@@ -1,7 +1,7 @@
 from datetime import datetime
 from queryProcessor.classes.QueryTree import QueryTree
 from queryProcessor.classes.Rows import Rows
-from concurrencyControl.Utils import Action
+from concurrencyControl.Utils import Action, Row
 from queryProcessor.functions.Helper import remove_duplicates, split_dot_contained_data
 from concurrencyControl.CCWrapper import ConcurrencyControlWrapper
 from failureRecovery.functions.DataPass import DataPass
@@ -177,8 +177,8 @@ class TreeHandler:
 
         # cc
 
-        self.concurrency_control.log_object(Rows(data), transaction_id)
-        response = self.concurrency_control.validate_object(Rows(data), transaction_id, Action.READ)
+        self.concurrency_control.log_object(Row(data, len(data)), transaction_id)
+        response = self.concurrency_control.validate_object(Row(data,len(data)), transaction_id, Action.READ)
         if not response.allowed:
             self.concurrency_control.end_transaction(transaction_id)
             abortion = RecoverCriteria(None, transaction_id)
@@ -476,8 +476,8 @@ class TreeHandler:
                 old_data.append(row)
 
         # cc
-        self.concurrency_control.log_object(Rows(old_data), transaction_id)
-        response = self.concurrency_control.validate_object(Rows(old_data), transaction_id, Action.WRITE)
+        self.concurrency_control.log_object(Row(old_data, len(old_data)), transaction_id)
+        response = self.concurrency_control.validate_object(Row(old_data, len(old_data)), transaction_id, Action.WRITE)
         if not response.allowed:
             self.concurrency_control.end_transaction(transaction_id)
             abortion = RecoverCriteria(None, transaction_id)
@@ -518,6 +518,7 @@ class TreeHandler:
         )
         execution_result = ExecutionResult(transaction_id= transaction_id,timestamp= datetime.now(), message= "UPDATE", data_before= data_pass_before, data_after= data_pass_after, query= "UPDATE")
         self.failure_recovery.write_log(execution_result)
+        return f"Updated {len(old_data)} row(s)."
 
     def _handle_delete(self, query_tree:QueryTree, transaction_id: int):
         table_name = query_tree.val["table"]
@@ -587,8 +588,8 @@ class TreeHandler:
                 old_data.append(row)
 
         # cc
-        self.concurrency_control.log_object(Rows(old_data))
-        response = self.concurrency_control.validate_object(Rows(old_data), transaction_id, Action.WRITE)
+        self.concurrency_control.log_object(Row(old_data, len(old_data)))
+        response = self.concurrency_control.validate_object(Row(old_data, len(old_data)), transaction_id, Action.WRITE)
         if not response.allowed:
             self.concurrency_control.end_transaction(transaction_id)
             abortion = RecoverCriteria(None, transaction_id)
@@ -600,6 +601,7 @@ class TreeHandler:
         data_pass_after = None
         execution_result = ExecutionResult(transaction_id= transaction_id,timestamp= datetime.now(), message= "DELETE", data_before= data_pass_before, data_after= data_pass_after, query= "DELETE")
         self.failure_recovery.write_log(execution_result)
+        return f"Deleted {len(old_data)} row(s)."
 
     def _handle_create(self, query_tree:QueryTree, transaction_id: int):
         table = query_tree.val["table"]
@@ -628,8 +630,8 @@ class TreeHandler:
         result = self.storage_engine.select(data_retrieval)
 
         # cc
-        self.concurrency_control.log_object(Rows(result), transaction_id)
-        response = self.concurrency_control.validate_object(Rows(result), transaction_id, Action.WRITE)
+        self.concurrency_control.log_object(Row(result, len(result)), transaction_id)
+        response = self.concurrency_control.validate_object(Row(result, len(result)), transaction_id, Action.WRITE)
         if not response.allowed:
             self.concurrency_control.end_transaction(transaction_id)
             abortion = RecoverCriteria(None, transaction_id)
@@ -648,3 +650,4 @@ class TreeHandler:
         )
         execution_result = ExecutionResult(transaction_id= transaction_id,timestamp= datetime.now(), message= "INSERT", data_before= data_pass_before, data_after= data_pass_after, query= "INSERT")
         self.failure_recovery.write_log(execution_result)
+        return f"Inserted."

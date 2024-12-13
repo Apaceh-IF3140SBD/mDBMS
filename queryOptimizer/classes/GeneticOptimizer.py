@@ -1,4 +1,5 @@
 import random
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from queryOptimizer.classes.QueryCost import QueryCost
 
 class GeneticOptimizer():
