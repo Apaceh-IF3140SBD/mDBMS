@@ -4,6 +4,7 @@ from concurrencyControl.CCWrapper import ConcurrencyControlWrapper
 from storageManager.core.BufferManager import BufferManager
 from failureRecovery.core.FailureRecovery import FailureRecovery
 from storageManager.core.StorageEngine import StorageEngine
+from storageManager.functions.DataRetrieval import DataRetrieval
 
 
 """
@@ -118,6 +119,31 @@ class ServerRunner:
             )
             storage_engine.insert(data_write)
 
+        for course_id in range(1, 50):
+            course_name = generate_course_name()
+            year = random.randint(2010, 2024)
+            course_description = f"This is a description for {course_name}."
+            data_write = DataWrite(
+                table="courses",
+                columns=["CourseID", "Year", "CourseName", "CourseDescription"],
+                new_value=[course_id, year, course_name, course_description],
+                conditions=[]
+            )
+            storage_engine.insert(data_write)
+        
+        for student_id in range(1, 100):
+            num_courses_taken = random.randint(1, 5)
+            for _ in range(0,num_courses_taken):
+                course_id = random.randint(1, 50)
+                year = random.randint(2010, 2024)
+                data_write = DataWrite(
+                    table="students_courses_relation",
+                    columns=["StudentId", "Year", "CourseId"],
+                    new_value=[student_id, year, course_id],
+                    conditions=[]
+                )
+                storage_engine.insert(data_write)
+                
         host, port = "localhost", 65432
         with CustomServer((host, port), handler, storage_engine, failure_recovery, concurrency_control) as server:
             print(f"Server running on {host}:{port}")

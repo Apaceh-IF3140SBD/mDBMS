@@ -15,7 +15,7 @@ class BufferManager:
         self.schemas = schemas
         self.buffer_pool: Dict[Tuple[str, int], DataBlock] = {} # current buffer condition (schema_name, block_id)
         self.block_usage: List[Tuple[str, int]] = [] # queue for lru
-        self.bin_path = os.path.join(os.path.dirname(__file__), "../bin")
+        self.bin_path = os.path.join(os.path.dirname(__file__), "../../bin")
 
     def read_block(self, table_name, block_id):
         key = (table_name, block_id)

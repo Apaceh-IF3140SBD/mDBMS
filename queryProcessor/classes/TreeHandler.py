@@ -85,7 +85,7 @@ class TreeHandler:
         print("4")
         new_data = child_data
 
-        print(new_data)
+        # print(new_data)
 
         # order
         if "ORDER BY" in query_tree.val:
@@ -150,16 +150,11 @@ class TreeHandler:
             columns=['StudentID', 'FullName', 'Nickname','GPA'],
             conditions=[],
         )
-        print("12")
-
+        columns = list(self.storage_engine.schemas[table_name].columns.keys())
+        header = columns
+        nonambiguous = header  = [f"{table_name}.{column}" for column in columns]
         result = self.storage_engine.select(data_retrieval)
-        print("resu: ", result)
-        header  = ['StudentID', 'FullName', 'Nickname','GPA']
-
         data = result
-        print("13")
-
-        nonambiguous = ['students.StudentID', 'students.FullName', 'students.Nickname','students.GPA']
 
         output = {
             table_name: {
