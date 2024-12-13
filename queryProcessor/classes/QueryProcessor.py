@@ -114,6 +114,7 @@ class QueryProcessor(ServerHandler):
                         tree_handler = TreeHandler(self.storage_engine)
                         result = tree_handler.process_node(optimized_query, self.transaction_id)
                         self.concurrency_control.end_transaction(self.transaction_id)
+                        print(len(result["data"]))
                         return result
                 
         except Exception as e:

@@ -62,7 +62,6 @@ class TreeHandler:
             "CREATE": self._handle_create,
             "INSERT": self._handle_insert,
         }
-        print("sapi: ",query_tree.childs, query_tree.val, query_tree.type)
         handler = handlers.get(query_tree.type.upper())
         if handler:
             return handler(query_tree, transaction_id)
@@ -84,6 +83,7 @@ class TreeHandler:
         child_data = child[child_table_names[0]]
         print("4")
         new_data = child_data
+        print("project: ",query_tree.childs, query_tree.val, query_tree.type)
 
         # print(new_data)
 
@@ -105,7 +105,8 @@ class TreeHandler:
 
         # LIMIT
         if "LIMIT" in query_tree.val:
-            new_data["data"] = new_data["data"][:query_tree.val["LIMIT"]]
+            print("limit:", query_tree.val["LIMIT"])
+            new_data["data"] = new_data["data"][:int(query_tree.val["LIMIT"][0])]
 
         # column filtering
         if "attributes" in query_tree.val:
@@ -115,6 +116,7 @@ class TreeHandler:
             # processing without table
             for attr in attributes_without_table:
                 if attr == "*":
+                    print("child_data:", child_data)
                     new_data["header"] = child_data["header"]
                     return new_data
                 if attr not in child_data["nonambiguous"]:
@@ -141,18 +143,19 @@ class TreeHandler:
         return new_data
 
     def _handle_table(self, query_tree: QueryTree, transaction_id: int):
+        print("table: ",query_tree.childs, query_tree.val, query_tree.type)
         table_name = query_tree.val
         print("11")
         # table_alias = query_tree.val.get("table_alias", table_name)
 
+        columns = list(self.storage_engine.schemas[table_name].columns.keys())
+        header = [f"{table_name}.{column}" for column in columns]
         data_retrieval = DataRetrieval(
             table=query_tree.val,
-            columns=['StudentID', 'FullName', 'Nickname','GPA'],
+            columns= columns,
             conditions=[],
         )
-        columns = list(self.storage_engine.schemas[table_name].columns.keys())
-        header = columns
-        nonambiguous = header  = [f"{table_name}.{column}" for column in columns]
+        nonambiguous = columns
         result = self.storage_engine.select(data_retrieval)
         data = result
 
@@ -202,15 +205,19 @@ class TreeHandler:
     """
     
     def _handle_selection(self, query_tree: QueryTree, transaction_id: int):
+        print("selection: ",query_tree.childs, query_tree.val, query_tree.type)
         child = list(query_tree.childs)
         child = self.process_node(child[0], transaction_id)
         child_table_names = list(child.keys())
+        print("ini " , child_table_names)
         child_data = child[child_table_names[0]]
         new_data = {}
         new_data["header"] = child_data["header"]
         new_data["data"] = []
         or_separated_condition = list(query_tree.val["conditions"])
+        print("sebelum seleksi: ", child_data["data"])
         for row in child_data["data"]:
+            print(row)
             conditions_fulfilled = False
 
             for and_separated_condition in or_separated_condition:
@@ -233,6 +240,8 @@ class TreeHandler:
                         rightSide = int_rightSide
                     except ValueError as e:
                         pass
+
+                    print("kiri, kanan", leftSide, rightSide)
                         
                     # case: <, =, >, <=, >=
                     # handle NULL?
@@ -253,8 +262,13 @@ class TreeHandler:
 
             if conditions_fulfilled:
                 new_data["data"].append(row)
-        
-        return new_data
+        print("hasil seleksi: ", new_data)
+        return {str(child_table_names):{
+                    "header": new_data["header"],
+                    "data": new_data["data"],
+                    "nonambiguous": child_data["nonambiguous"],
+            }       
+        }
         
 
     """
@@ -268,7 +282,7 @@ class TreeHandler:
         childs = list(query_tree.childs)
         table1 = self.process_node(childs[0], transaction_id)
         table2 = self.process_node(childs[1], transaction_id)
-        conditions = query_tree.val["conditions"]
+        conditions = query_tree.val["conditions"][0]
 
         table1_name = list(table1.keys())[0]
         table2_name = list(table2.keys())[0]
@@ -302,7 +316,7 @@ class TreeHandler:
         ]
 
         for condition in conditions:
-            if condition[0].split('.')[1] == condition[1].split('.')[1]:
+            if condition[0].split('.')[1] == condition[2].split('.')[1]:
                 new_nonambiguous.append(condition[0].split('.')[1])
         
         # Return the joined result
@@ -318,7 +332,10 @@ class TreeHandler:
     def _sort_join_conditions(self, table1_header, table2_header, conditions):
         sorted_conditions = []
         for condition in conditions:
-            left_attr, right_attr = condition
+            left_attr, _, right_attr = condition
+            print("left", left_attr, "right: ", right_attr)
+            print(table1_header)
+            print(table2_header)
 
 
             # Determine if attributes belong to table1 or table2

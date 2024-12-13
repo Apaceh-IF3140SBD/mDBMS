@@ -58,9 +58,9 @@ student_schema = TableSchema(
 student_course_schema = TableSchema(
     table_name="students_courses_relation",
     columns={
-        "StudentId": "int",
+        "StudentID": "int",
         "Year": "int",
-        "CourseId": "int"
+        "CourseID": "int"
     }
 )
 
@@ -107,7 +107,7 @@ class ServerRunner:
         storage_engine.create_table(student_course_schema)
         storage_engine.create_table(course_schema)
 
-        for student_id in range(1, 100):
+        for student_id in range(1, 10):
             full_name = generate_name()
             nick_name = "cupi"
             gpa = round(random.uniform(2.0, 4.0), 2)
@@ -119,7 +119,7 @@ class ServerRunner:
             )
             storage_engine.insert(data_write)
 
-        for course_id in range(1, 50):
+        for course_id in range(1, 3):
             course_name = generate_course_name()
             year = random.randint(2010, 2024)
             course_description = f"This is a description for {course_name}."
@@ -131,14 +131,14 @@ class ServerRunner:
             )
             storage_engine.insert(data_write)
         
-        for student_id in range(1, 100):
-            num_courses_taken = random.randint(1, 5)
+        for student_id in range(1, 10):
+            num_courses_taken = random.randint(1, 2)
             for _ in range(0,num_courses_taken):
-                course_id = random.randint(1, 50)
+                course_id = random.randint(1, 3)
                 year = random.randint(2010, 2024)
                 data_write = DataWrite(
                     table="students_courses_relation",
-                    columns=["StudentId", "Year", "CourseId"],
+                    columns=["StudentID", "Year", "CourseID"],
                     new_value=[student_id, year, course_id],
                     conditions=[]
                 )
