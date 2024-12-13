@@ -303,7 +303,6 @@ class TreeHandler:
         childs = list(query_tree.childs)
         table1 = self.process_node(childs[0], transaction_id)
         table2 = self.process_node(childs[1], transaction_id)
-        conditions = query_tree.val["conditions"][0]
 
         table1_name = list(table1.keys())[0]
         table2_name = list(table2.keys())[0]
@@ -312,8 +311,20 @@ class TreeHandler:
         headers1 = table1[table1_name]["header"]
         headers2 = table2[table2_name]["header"]
 
-        # Sort join conditions to determine column indices
-        sorted_join_conditions = self._sort_join_conditions(headers1, headers2, conditions)
+
+
+        sorted_join_conditions = []
+        if query_tree.val["natural"]:
+            # natural
+            for i, header1 in enumerate(headers1):
+                for j, header2 in enumerate(headers2):
+                    if header1.split('.')[1] == header2.split('.')[1]:
+                        sorted_join_conditions.append([i,j])
+        else:
+            # not natural
+            conditions = query_tree.val["conditions"][0]
+            # Sort join conditions to determine column indices
+            sorted_join_conditions = self._sort_join_conditions(headers1, headers2, conditions)
 
         # Create joined headers
         joined_headers = headers1 + headers2
