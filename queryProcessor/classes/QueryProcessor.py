@@ -20,13 +20,15 @@ from server.Server import ServerHandler, CustomServer
 import json
 
 
-
 class QueryProcessor(ServerHandler):
+    sequence = 1
     def __init__(self, request, client_address, server: CustomServer):
         self.storage_engine = server.storage_engine
         self.failure_recovery = server.failure_recovery
         self.transaction_statuss = False
         self.concurrency_control = server.concurrency_control
+        self.sequenceNum = QueryProcessor.sequence
+        QueryProcessor.sequence += 1
         self.transaction_id = -1
         super().__init__(request, client_address, server)
 
@@ -34,13 +36,15 @@ class QueryProcessor(ServerHandler):
         print(f"Connection established with {self.client_address}")
 
         try:
-            data = self.request.recv(1024).decode('utf-8').strip()
-            print(f"Received request: {data}")
+            while True:
+                print("Instance:", QueryProcessor.sequence)
+                data = self.request.recv(1024).decode('utf-8').strip()
+                print(f"Received request: {data}")
 
-            result = self.execute_query(data)
+                result = self.execute_query(data)
 
-            response_json = json.dumps(result)
-            self.request.sendall(response_json.encode('utf-8'))
+                response_json = json.dumps(result)
+                self.request.sendall(response_json.encode('utf-8'))
 
 
             # person_data = fruit_mapping.get(data)
