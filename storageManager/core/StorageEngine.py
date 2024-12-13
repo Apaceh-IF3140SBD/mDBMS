@@ -161,7 +161,6 @@ class StorageEngine:
 
         for block_id in all_block_ids:
             block = self.buffer_manager.read_block(table_name, block_id)
-            modified = False
 
             for offset, row in list(block.rows.items()):
                 if self.evaluate_conditions(row, conditions, table_name):
@@ -179,10 +178,8 @@ class StorageEngine:
                     
                     block.rows[offset] = tuple(updated_row)
                     affected_row += 1
-                    modified = True
 
-            if modified:
-                self.buffer_manager.write_block(table_name, block_id, block)
+            self.buffer_manager.write_block(table_name, block_id, block)
 
         return affected_row
     
