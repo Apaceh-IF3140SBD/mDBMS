@@ -25,9 +25,7 @@ class QueryProcessor(ServerHandler):
     def __init__(self, request, client_address, server: CustomServer):
         self.storage_engine = server.storage_engine
         self.failure_recovery = server.failure_recovery
-        self.transaction_statuss = False
         self.concurrency_control = server.concurrency_control
-        self.transaction_id = -1
         super().__init__(request, client_address, server)
 
     def handle(self):
@@ -63,59 +61,43 @@ class QueryProcessor(ServerHandler):
 
             
 
-    def execute_query(self, query: str):
-        """
-        Execute a parsed query.
-
-        query_tree: dict
-            Example query_tree format:
-            {
-                "command": "SELECT", # or "INSERT", "UPDATE", "DELETE", "CREATE"
-                "table": "students",
-                "attributes": ["StudentID", "FullName"], # For SELECT, UPDATE
-                "values": [1, "Alice", 3.8], # For INSERT, UPDATE
-                "conditions": [{"column": "GPA", "operation": ">", "operand": 3.5}] # For SELECT, UPDATE, DELETE
-            }
-        """
-
+    def execute_query(self, query: str, transaction_id: int):
         try:
-            # if query.lower()  == "begin transaction;":
-            #     if not self.transaction_statuss:
-            #         self.transaction_id = self.concurrency_control.begin_transaction()
-            #         self.transaction_statuss = True
-            #         print("START TRANSACTION\n")
-            #     else:
-            #         print("WARNING:  there is already a transaction in progress\n START TRANSACTION\n")
-            # else:        
-            #     if query.lower() == "commit;":
-            #         if self.transaction_statuss:
-            #             self.concurrency_control.end_transaction(self.transaction_id)
-            #             self.transaction_statuss = False
-            #             self.transaction_id = -1
-            #             print("COMMIT\n")
-            #         else:
-            #             print("WARNING:  there is no transaction in progress\nCOMMIT\n")
-            #     else:
-            #         if self.transaction_statuss:                
-            #             query_optimizer = OptimizationEngine(storageEngine=StorageEngine)
-            #             parsed_query = query_optimizer.parse_query(query)
-            #             optimized_query = query_optimizer.optimize_query(parsed_query)
-            #             tree_handler = TreeHandler(self.storage_engine)
-            #             result = tree_handler.proccess_node(optimized_query, self.transaction_id)
-            #             return result
-            #         else:
-                        self.transaction_id = self.concurrency_control.begin_transaction()
-            #             self.transaction_statuss = True
+            if query.lower()  == "begin transaction" or query.lower()  == "start transaction":
+                if transaction_id < -1:
+                    return {}, self.concurrency_control.begin_transaction()
+                else:
+                    return {}, transaction_id
+            else:        
+                if query.lower() == "commit;":
+                    if transaction_id < -1:
+                        return {}, transaction_id
+                    else:
+                        self.concurrency_control.end_transaction(transaction_id)
+                        return {}, transaction_id
+                else:
+                    if transaction_id >= 0:           
+                        # satu perintah dalam transaction
+                        query_optimizer = OptimizationEngine(storageEngine=StorageEngine)
+                        parsed_query = query_optimizer.parse_query(query)
+                        optimized_query = query_optimizer.optimize_query(parsed_query)
+                        tree_handler = TreeHandler(self.storage_engine)
+                        result = tree_handler.proccess_node(optimized_query, transaction_id)
+                        return result, transaction_id
+                    else:
+                        # satu perintah utuh langsung titik koma
+                        transaction_id = self.concurrency_control.begin_transaction()
+                        self.transaction_statuss = True
                         query_optimizer = OptimizationEngine(self.storage_engine, {})
-                        # parsed_query = query_optimizer.parse_query(query)
+                        parsed_query = query_optimizer.parse_query(query)
                         optimized_query = query_optimizer.optimize_query(query)
                         print("ADASDASD", optimized_query)
                         print("After optimization")
                         tree_handler = TreeHandler(self.storage_engine)
-                        result = tree_handler.process_node(optimized_query, self.transaction_id)
-                        self.concurrency_control.end_transaction(self.transaction_id)
-                        print(len(result["data"]))
-                        return result
+                        result = tree_handler.process_node(optimized_query, transaction_id)
+                        self.concurrency_control.end_transaction(transaction_id)
+                        print(result)
+                        return result, -2
                 
         except Exception as e:
             # Code to handle the exception
