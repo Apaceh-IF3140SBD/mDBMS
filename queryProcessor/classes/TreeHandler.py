@@ -140,7 +140,13 @@ class TreeHandler:
         
         new_data["data"] = remove_duplicates(new_data["data"])
         
-        return new_data
+        return {
+            str(child_table_names[0]):{
+                "header": new_data["header"],
+                "data": new_data["data"],
+                "nonambiguous": child_data["nonambiguous"],
+            }
+        }
 
     def _handle_table(self, query_tree: QueryTree, transaction_id: int):
         print("table: ",query_tree.childs, query_tree.val, query_tree.type)
