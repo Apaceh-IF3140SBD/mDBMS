@@ -16,7 +16,6 @@ class Client:
         try:
             client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             client.connect((Client.HOST, Client.PORT))
-            print("Connected")
             request = {
                 "query": query,
                 "transaction_id": self.transaction_id
@@ -24,7 +23,10 @@ class Client:
             dumps = json.dumps(request)
             client.send(dumps.encode('utf-8'))
             response = client.recv(1024*1024).decode('utf-8')
-            data, t_id = json.loads(response)
+            tupples = json.loads(response)
+            if (len(tupples) != 2):
+                return tupples
+            data, t_id = tupples
             self.transaction_id = t_id
             return data
         except Exception as e:
