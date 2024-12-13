@@ -1,40 +1,43 @@
-from OptimizerRule import OptimizerRule
-from Query import QueryTree
+from queryOptimizer.classes.OptimizerRule import OptimizerRule
+from queryOptimizer.classes.Query import QueryTree
 
 class ConjungtiveSelection(OptimizerRule):
-    def apply_rule(self, query_tree: QueryTree):
-
+    def apply_rule(self, query_tree: QueryTree) -> QueryTree:
         if not query_tree.childs:
             return query_tree
-        
+
         for i, child in enumerate(query_tree.childs):
             query_tree.childs[i] = self.apply_rule(child)
 
         if query_tree.type == "selection":
-            combined_conditions = []
-            new_childs = []
-
+            conditions = query_tree.val.get("conditions", [])
             for child in query_tree.childs:
-                if child.type == "condition":
-                    combined_conditions.append(child.val)
-                elif child.type == "operator" and child.val == "AND":
-                    combined_conditions.append("AND")
-                else:
-                    new_childs.append(child)
+                if child.type in ["table"] and len(conditions[0])>1:
+                    nodes = {}
+                    selected_node = None
+                    condremove = []
+                    projection_node = QueryTree(type="selection", val=nodes, parent=query_tree)
+                    for cond in conditions[0]:
+                        
+                        table = cond[0].split('.')[0]
+                        if child.type =='table' and table == child.val:
+                            if nodes:
+                                column_list = nodes.get("conditions")
+                                column_list[0].append(cond)
+                                nodes.update({"conditions": column_list})
+                            else:
+                                nodes["conditions"] = [[cond]]  
+                            selected_node = child
+                            condremove.append(cond)
+                    if nodes:
+                        projection_node.childs.append(child)
+                    if len(projection_node.childs) > 0:
+                        query_tree.childs.remove(selected_node)
+                        query_tree.childs.insert(0, projection_node)
+                        nodes = {}
+                        projection_node = QueryTree(type="selection", val=nodes, parent=query_tree)
+                    for cond in condremove:
+                        conditions[0].remove(cond)
 
-            # Gabungkan kondisi menjadi satu ekspresi
-            if combined_conditions:
-                combined_expr = " ".join(combined_conditions)
-                if "AND" in combined_expr:
-                    # Pecah ekspresi berdasarkan AND
-                    conditions = combined_expr.split(" AND ")
-                    for condition in conditions:
-                        new_condition_node = QueryTree(type="condition", val=condition.strip(), parent=query_tree)
-                        new_childs.append(new_condition_node)
-                else:
-                    # Jika tidak ada AND, tambahkan kondisi seperti biasa
-                    new_childs.append(QueryTree(type="condition", val=combined_expr, parent=query_tree))
-
-            query_tree.childs = new_childs
 
         return query_tree

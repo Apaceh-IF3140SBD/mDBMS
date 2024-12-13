@@ -1,6 +1,4 @@
-
 from queryOptimizer.classes.OptimizerRule import OptimizerRule
-from queryOptimizer.classes.TreeManager import TreeManager
 from queryOptimizer.classes.Query import QueryTree
 
 # RULES 6

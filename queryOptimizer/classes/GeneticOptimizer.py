@@ -23,8 +23,8 @@ class GeneticOptimizer():
 
     def crossover(self, parent1, parent2):
         point = random.randint(1, len(parent1) - 1)
-        child1 = parent1[:point] + parent2[point:]
-        child2 = parent2[:point] + parent1[point:]
+        child1 = parent1[:point] + [rule for rule in parent2 if rule not in parent1[:point]]
+        child2 = parent2[:point] + [rule for rule in parent1 if rule not in parent2[:point]]
         return child1, child2
 
     def mutate(self, individual):

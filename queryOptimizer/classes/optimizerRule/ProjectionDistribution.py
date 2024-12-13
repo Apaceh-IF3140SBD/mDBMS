@@ -1,6 +1,5 @@
 from queryOptimizer.classes.OptimizerRule import OptimizerRule
 from queryOptimizer.classes.Query import QueryTree
-from queryOptimizer.classes.TreeManager import TreeManager
 
 class ProjectionDistribution(OptimizerRule):
     def __init__(self):
@@ -26,13 +25,15 @@ class ProjectionDistribution(OptimizerRule):
             selected_node = None
             for child in querytree.childs:
                 if child.type == "table":
-                    if child.val in self.global_projection[0]:
-                        nodes["attributes"] = [{child.val: self.global_projection[0][child.val]}]
+                    if child.val in self.global_projection:
+                        nodes["attributes"] = [{child.val: self.global_projection[child.val]}]
                         projection_node.childs.append(child)
                         selected_node = child
 
-            if len(projection_node.childs) > 0:
-                querytree.childs.remove(selected_node)
-                querytree.childs.insert(0, projection_node)
+                        if len(projection_node.childs) > 0:
+                            querytree.childs.remove(selected_node)
+                            querytree.childs.insert(0, projection_node)
+                        nodes = {}
+                        projection_node = QueryTree("projection", nodes, None, querytree)
 
         return querytree

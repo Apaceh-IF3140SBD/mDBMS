@@ -12,8 +12,6 @@ from storageManager.functions.DataWrite import DataWrite
 from storageManager.functions.DataDeletion import DataDeletion
 from storageManager.core.StorageEngine import StorageEngine
 from storageManager.functions.Condition import Condition
-
-
 class FailureRecovery:
     def __init__(self, storageEngine: StorageEngine, log_file_path: str = "write_ahead_log.json"):
         self.buffer: List[Any] = []
@@ -337,35 +335,31 @@ class FailureRecovery:
     def save_checkpoint(self) -> None:
         active_transactions = set()
         transaction_status = {}
-        last_start_log = {}
-
-        for i, log in enumerate(self.write_ahead_log):
+        transactions_to_keep = set()
+    
+        # Determine the status of each transaction
+        for log in self.write_ahead_log:
             transaction_id = log.transaction_id
-
+    
             if log.operation_type == "START":
                 transaction_status[transaction_id] = "ACTIVE"
-                last_start_log[transaction_id] = i
-            elif log.operation_type == "COMMIT":
-                transaction_status[transaction_id] = "COMMITTED"
-            elif log.operation_type == "ABORT":
-                transaction_status[transaction_id] = "ABORTED"
-
+            elif log.operation_type in ("COMMIT", "ABORT"):
+                transaction_status[transaction_id] = log.operation_type
+    
+        # Identify active transactions (those not committed or aborted)
         for transaction_id, status in transaction_status.items():
             if status == "ACTIVE":
                 active_transactions.add(transaction_id)
-
-        filtered_logs = []
-        for i, log in enumerate(self.write_ahead_log):
-            transaction_id = log.transaction_id
-
-            if transaction_id in active_transactions:
-                if transaction_id in last_start_log and i >= last_start_log[transaction_id]:
-                    filtered_logs.append(log)
-            elif transaction_id == -1:
-                filtered_logs.append(log)
-
+    
+        # Collect only logs related to active transactions
+        filtered_logs = [
+            log for log in self.write_ahead_log if log.transaction_id in active_transactions or log.transaction_id == -1
+        ]
+    
+        # Replace the current log with the filtered logs
         self.write_ahead_log = filtered_logs
-
+    
+        # Add a checkpoint entry with active transactions
         checkpoint_entry = WALLogEntry(
             log_sequence_number=len(self.write_ahead_log) + 1,
             transaction_id=-1,
@@ -376,18 +370,12 @@ class FailureRecovery:
             active_trans=list(active_transactions),
         )
         self.write_ahead_log.append(checkpoint_entry)
-
+    
         print(f"Checkpoint active transactions: {active_transactions}")
-
-        for transaction_id, status in transaction_status.items():
-            if status == "COMMITTED":
-                print(f"Transaction {transaction_id} committed.")
-            elif status == "ABORTED":
-                print(f"Transaction {transaction_id} aborted.")
-
+    
+        # Write the updated log to the file and flush the buffer
         self._write_to_file()
         self.storageEngine.buffer_manager.flush_all_block()
-
 
 
     ### This function is called when...
@@ -432,14 +420,12 @@ class FailureRecovery:
             # Safety measure
             if entry.operation_type in ("COMMIT", "ABORT"):
                 break
-
+    
     def _write_to_file(self) -> None:
         with open(self.log_file_path, "w") as file:
             json.dump([entry.to_dict() for entry in self.write_ahead_log], file)
-        json_to_bin("write_ahead_log.json", "write_ahead_log.bin")
 
     def _load_logs(self) -> None:
-        bin_to_json("write_ahead_log.bin", "write_ahead_log.json")
         if os.path.exists(self.log_file_path):
             with open(self.log_file_path, "r") as file:
                 file_content = file.read().strip()
