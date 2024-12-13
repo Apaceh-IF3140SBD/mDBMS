@@ -3,6 +3,8 @@ import json
 import pickle
 from typing import List, Union, Any
 from datetime import datetime
+import threading
+import time
 
 from failureRecovery.functions.ExecutionResult import ExecutionResult
 from failureRecovery.functions.RecoverCriteria import RecoverCriteria
@@ -12,6 +14,8 @@ from storageManager.functions.DataWrite import DataWrite
 from storageManager.functions.DataDeletion import DataDeletion
 from storageManager.core.StorageEngine import StorageEngine
 from storageManager.functions.Condition import Condition
+
+
 class FailureRecovery:
     def __init__(self, storageEngine: StorageEngine, log_file_path: str = "write_ahead_log.json"):
         self.buffer: List[Any] = []
@@ -20,6 +24,17 @@ class FailureRecovery:
         self.log_sequence_number = 0
         self.storageEngine = storageEngine
         self._load_logs()
+        self.system_recover()
+        self.save_5_mins()
+
+    def save_5_mins(self):
+        def periodic_save():
+            while True:
+                time.sleep(300)
+                self.save_checkpoint()
+
+        save_thread = threading.Thread(target=periodic_save, daemon=True)
+        save_thread.start()
 
     ### This method is called when commiting a certain transaction
     def commit(self, transaction_id) -> None:
@@ -58,7 +73,7 @@ class FailureRecovery:
             self.log_sequence_number += 1
             start_wal_entry.log_sequence_number = self.log_sequence_number
             self.write_ahead_log.append(start_wal_entry)
-            print(f"Start log written: {start_wal_entry.to_dict()}")
+            # print(f"Start log written: {start_wal_entry.to_dict()}")
         
         info_wal = info.to_wal_log_entry()
         self.log_sequence_number += 1
@@ -66,7 +81,7 @@ class FailureRecovery:
     
         self.write_ahead_log.append(info_wal)
         self._write_to_file()
-        print(f"Log entry written: {info_wal.to_dict()}")
+        # print(f"Log entry written: {info_wal.to_dict()}")
 
         ### Type 1 - using todo
         # if (info_wal.operation_type == "INSERT"):
@@ -98,6 +113,10 @@ class FailureRecovery:
                 ]
                 for row in info.data_before.data.data
             ]
+            for b in delete_conditions:
+                for a in b:
+                    print (a.column, a.operation, a.operand)
+            print(info.data_before.table)
 
             for conditions in delete_conditions:
                 delete_data = DataDeletion(
@@ -126,6 +145,10 @@ class FailureRecovery:
                 ]
                 for row in info.data_before.data.data
             ]
+            for b in delete_conditions:
+                for a in b:
+                    print (a.column, a.operation, a.operand)
+            print(info.data_before.table)
 
             for conditions in delete_conditions:
                 delete_data = DataDeletion(
@@ -201,6 +224,10 @@ class FailureRecovery:
                 ]
                 for row in info.data_before.data.data
             ]
+            for b in delete_conditions:
+                for a in b:
+                    print (a.column, a.operation, a.operand)
+            print(info.data_before.table)
 
             for conditions in delete_conditions:
                 delete_data = DataDeletion(
@@ -246,6 +273,10 @@ class FailureRecovery:
                 ]
                 for row in info.data_before.data.data
             ]
+            for b in delete_conditions:
+                for a in b:
+                    print (a.column, a.operation, a.operand)
+            print(info.data_before.table)
 
             for conditions in delete_conditions:
                 delete_data = DataDeletion(
@@ -256,68 +287,84 @@ class FailureRecovery:
         
         self._write_to_file()
 
-        print(f"Stable storage confirmed: {info.to_dict()}")
+        # print(f"Stable storage confirmed: {info.to_dict()}")
         return 0
-    
+
     ### This function is called when system failure occured and Failure Recovery is reinstantiated
-    def write_log_system_failure(self, info: WALLogEntry) -> None:
-        if (info.operation_type == "INSERT"):
-            insert_data = [
-                DataWrite(
-                    table=info.data_after.table,
-                    columns=info.data_after.cols,
-                    new_value=[row[info.data_after.cols.index(col)] for col in info.data_after.cols],
-                    conditions=[]
-                )
-                for row in info.data_after.data.data
-            ]
-            for data in insert_data:
-                print(data.new_value)
-                self.storageEngine.insert(data)            
-        elif (info.operation_type == "UPDATE"):
-            delete_conditions = [
-                [
-                    Condition(column=col, operation='=', operand=row[info.data_before.cols.index(col)])
-                    for col in info.data_before.cols
+    def write_log_system_failure(self) -> None:
+        def process_log_entry(log_entry):
+            if log_entry.operation_type == "INSERT":
+                insert_data = [
+                    DataWrite(
+                        table=log_entry.data_after.table,
+                        columns=log_entry.data_after.cols,
+                        new_value=[row[log_entry.data_after.cols.index(col)] for col in log_entry.data_after.cols],
+                        conditions=[]
+                    )
+                    for row in log_entry.data_after.data.data
                 ]
-                for row in info.data_before.data.data
-            ]
+                for data in insert_data:
+                    print(data.new_value)
+                    self.storageEngine.insert(data)
 
-            for conditions in delete_conditions:
-                delete_data = DataDeletion(
-                    table=info.data_before.table,
-                    conditions=conditions
-                )
-                self.storageEngine.delete(delete_data)
-
-            insert_data = [
-                DataWrite(
-                    table=info.data_after.table,
-                    columns=info.data_after.cols,
-                    new_value=[row[info.data_after.cols.index(col)] for col in info.data_after.cols],
-                    conditions=[]
-                )
-                for row in info.data_after.data.data
-            ]
-            for data in insert_data:
-                print(data.new_value)
-                self.storageEngine.insert(data)
-
-        if (info.operation_type == "DELETE"):
-            delete_conditions = [
-                [
-                    Condition(column=col, operation='=', operand=row[info.data_before.cols.index(col)])
-                    for col in info.data_before.cols
+            elif log_entry.operation_type == "UPDATE":
+                delete_conditions = [
+                    [
+                        Condition(column=col, operation='=', operand=row[log_entry.data_before.cols.index(col)])
+                        for col in log_entry.data_before.cols
+                    ]
+                    for row in log_entry.data_before.data.data
                 ]
-                for row in info.data_before.data.data
-            ]
 
-            for conditions in delete_conditions:
-                delete_data = DataDeletion(
-                    table=info.data_before.table,
-                    conditions=conditions
-                )
-                self.storageEngine.delete(delete_data)
+                for conditions in delete_conditions:
+                    delete_data = DataDeletion(
+                        table=log_entry.data_before.table,
+                        conditions=conditions
+                    )
+                    self.storageEngine.delete(delete_data)
+
+                insert_data = [
+                    DataWrite(
+                        table=log_entry.data_after.table,
+                        columns=log_entry.data_after.cols,
+                        new_value=[row[log_entry.data_after.cols.index(col)] for col in log_entry.data_after.cols],
+                        conditions=[]
+                    )
+                    for row in log_entry.data_after.data.data
+                ]
+                for data in insert_data:
+                    print(data.new_value)
+                    self.storageEngine.insert(data)
+
+            elif log_entry.operation_type == "DELETE":
+                delete_conditions = [
+                    [
+                        Condition(column=col, operation='=', operand=row[log_entry.data_before.cols.index(col)])
+                        for col in log_entry.data_before.cols
+                    ]
+                    for row in log_entry.data_before.data.data
+                ]
+
+                for conditions in delete_conditions:
+                    delete_data = DataDeletion(
+                        table=log_entry.data_before.table,
+                        conditions=conditions
+                    )
+                    self.storageEngine.delete(delete_data)
+
+        checkpoint_index = -1
+        for i, log in enumerate(self.write_ahead_log):
+            if log.operation_type == "CHECKPOINT":
+                checkpoint_index = i
+                break
+
+        if checkpoint_index == -1:
+            print("No checkpoint found in logs.")
+            self.save_checkpoint()
+
+        for log_entry in self.write_ahead_log[checkpoint_index + 1:]:
+            process_log_entry(log_entry)
+
 
     
     ### This function is called when no storage engine involved in logging (start, commit, abort)
@@ -329,37 +376,45 @@ class FailureRecovery:
 
         self._write_to_file()
 
-        print(f"Stable storage confirmed: {info.to_dict()}")
+        # print(f"Stable storage confirmed: {info.to_dict()}")
 
     ### This function is called when ...
     def save_checkpoint(self) -> None:
+        self.write_ahead_log = [
+            log for log in self.write_ahead_log if log.operation_type != "CHECKPOINT"
+        ]
+
         active_transactions = set()
         transaction_status = {}
-        transactions_to_keep = set()
-    
-        # Determine the status of each transaction
-        for log in self.write_ahead_log:
+        last_start_log = {}
+
+        for i, log in enumerate(self.write_ahead_log):
             transaction_id = log.transaction_id
-    
+
             if log.operation_type == "START":
                 transaction_status[transaction_id] = "ACTIVE"
-            elif log.operation_type in ("COMMIT", "ABORT"):
-                transaction_status[transaction_id] = log.operation_type
-    
-        # Identify active transactions (those not committed or aborted)
+                last_start_log[transaction_id] = i
+            elif log.operation_type == "COMMIT":
+                transaction_status[transaction_id] = "COMMITTED"
+            elif log.operation_type == "ABORT":
+                transaction_status[transaction_id] = "ABORTED"
+
         for transaction_id, status in transaction_status.items():
             if status == "ACTIVE":
                 active_transactions.add(transaction_id)
-    
-        # Collect only logs related to active transactions
-        filtered_logs = [
-            log for log in self.write_ahead_log if log.transaction_id in active_transactions or log.transaction_id == -1
-        ]
-    
-        # Replace the current log with the filtered logs
+
+        filtered_logs = []
+        for i, log in enumerate(self.write_ahead_log):
+            transaction_id = log.transaction_id
+
+            if transaction_id in active_transactions:
+                if transaction_id in last_start_log and i >= last_start_log[transaction_id]:
+                    filtered_logs.append(log)
+            elif transaction_id == -1:
+                filtered_logs.append(log)
+
         self.write_ahead_log = filtered_logs
-    
-        # Add a checkpoint entry with active transactions
+
         checkpoint_entry = WALLogEntry(
             log_sequence_number=len(self.write_ahead_log) + 1,
             transaction_id=-1,
@@ -370,21 +425,31 @@ class FailureRecovery:
             active_trans=list(active_transactions),
         )
         self.write_ahead_log.append(checkpoint_entry)
-    
+
         print(f"Checkpoint active transactions: {active_transactions}")
-    
-        # Write the updated log to the file and flush the buffer
+
+        for transaction_id, status in transaction_status.items():
+            if status == "COMMITTED":
+                print(f"Transaction {transaction_id} committed.")
+            elif status == "ABORTED":
+                print(f"Transaction {transaction_id} aborted.")
+
         self._write_to_file()
         self.storageEngine.buffer_manager.flush_all_block()
 
 
+
     ### This function is called when...
     def system_recover(self) -> None:
-        for log_entry in self.write_ahead_log:
-            self.write_log_system_failure(log_entry)
+        if not self.write_ahead_log:
+            self.save_checkpoint()
 
-        print("System recovery complete.")
-        return 0
+        else:
+            # for log_entry in self.write_ahead_log:
+            self.write_log_system_failure() # load to buffer
+
+            print("System recovery complete.")
+            return 0
 
     ### This function is called when a transaction is getting aborted
     def recover(self, criteria: RecoverCriteria) -> None:
@@ -420,12 +485,14 @@ class FailureRecovery:
             # Safety measure
             if entry.operation_type in ("COMMIT", "ABORT"):
                 break
-    
+
     def _write_to_file(self) -> None:
         with open(self.log_file_path, "w") as file:
             json.dump([entry.to_dict() for entry in self.write_ahead_log], file)
+        json_to_bin("write_ahead_log.json", "write_ahead_log.bin")
 
     def _load_logs(self) -> None:
+        bin_to_json("write_ahead_log.bin", "write_ahead_log.json")
         if os.path.exists(self.log_file_path):
             with open(self.log_file_path, "r") as file:
                 file_content = file.read().strip()
