@@ -12,14 +12,14 @@ from queryOptimizer.classes.optimizerRule import SelectionDistribution
 import re
 
 rules = [
-    ProjectionSimplification(),
-    NaturalJoinCommutative(),
-    CombineSelectionCartesian(),
-    ProjectionDistribution(),
-    ThetaJoinCommutative(),
-    SelectionCommutative(),
-    ConjungtiveSelection(),
-    SelectionDistribution()
+    ProjectionSimplification.ProjectionSimplification(),
+    NaturalJoinCommutative.NaturalJoinCommutative(),
+    CombineSelectionCartesian.CombineSelectionCartesian(),
+    ProjectionDistribution.ProjectionDistribution(),
+    ThetaJoinCommutative.ThetaJoinCommutative(),
+    SelectionCommutative.SelectionCommutative(),
+    ConjungtiveSelection.ConjungtiveSelection(),
+    SelectionDistribution.SelectionDistribution()
 ]
 
 

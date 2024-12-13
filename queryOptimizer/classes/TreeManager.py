@@ -1,4 +1,4 @@
-from Query import QueryTree
+from queryOptimizer.classes.Query import QueryTree
 from storageManager.core.StorageEngine import StorageEngine
 import copy
 
