@@ -180,6 +180,7 @@ class TreeHandler:
         self.concurrency_control.log_object(Rows(data))
         response = self.concurrency_control.validate_object(Rows(data), transaction_id, Action.READ)
         if not response.allowed:
+            self.concurrency_control.end_transaction(transaction_id)
             abortion = RecoverCriteria(None, transaction_id)
             self.failure_recovery.recover(abortion)
         
@@ -409,28 +410,105 @@ class TreeHandler:
     
     def _handle_update(self, query_tree:QueryTree, transaction_id: int):
         table_name = query_tree.val["table"][0]
-
         columns = list(self.storage_engine.schemas[table_name].columns.keys())
+        metadata = [self.storage_engine.schemas[table_name].columns[column] for column in columns]
 
         data_retrieval = DataRetrieval(
             table=table_name,
             columns=columns,
-            conditions=[query_tree.val["conditions"]], #ubah jadi sesuai ama selection
+            conditions=[], #ubah jadi sesuai ama selection
         )
-        old_data = self.storage_engine.select(data_retrieval)
+        retrieval_result = self.storage_engine.select(data_retrieval)
+
+        converted_data = []
+        for row in retrieval_result:
+            converted_row = []
+            for i, value in enumerate(row):
+                if metadata[i] == "int":
+                    converted_row.append(int(value))
+                elif metadata[i] == "float":
+                    converted_row.append(float(value))
+                else:
+                    converted_row.append(value)  # Keep as-is for other types
+            converted_data.append(converted_row)
+
+        old_data = []
+
+        for row in converted_data:
+            print(row)
+            conditions_fulfilled = False
+
+            for and_separated_condition in query_tree.val["conditions"]:
+                and_conditions_fulfilled = True
+                for condition in and_separated_condition:
+                    try: 
+                        leftSide = row[columns.index(condition[0])]
+                    except (ValueError, IndexError) as e:
+                        leftSide = condition[0]
+                    try:
+                        rightSide = row[columns.index(condition[2])]
+                    except (ValueError, IndexError) as e:
+                        rightSide = condition[2]
+                    
+                    # try convert to int
+                    if(type(rightSide) == float or type(leftSide) == float):
+                        rightSide = float(rightSide)
+                        leftSide = float(leftSide)
+                        
+                    # case: <, =, >, <=, >=
+                    # handle NULL?
+                    if condition[1] == '=':
+                        and_conditions_fulfilled = and_conditions_fulfilled and leftSide == rightSide
+                    elif condition[1] == '>':
+                        and_conditions_fulfilled = and_conditions_fulfilled and  leftSide > rightSide
+                    elif condition[1] == '<':
+                        and_conditions_fulfilled = and_conditions_fulfilled and  leftSide < rightSide
+                    elif condition[1] == '>=':
+                        and_conditions_fulfilled = and_conditions_fulfilled and  leftSide >= rightSide
+                    elif condition[1] == '<=':
+                        and_conditions_fulfilled = and_conditions_fulfilled and  leftSide <= rightSide
+                    elif condition[1] == '<>':
+                        and_conditions_fulfilled = and_conditions_fulfilled and  leftSide != rightSide
+
+                conditions_fulfilled = conditions_fulfilled or  and_conditions_fulfilled
+
+            if conditions_fulfilled:
+                old_data.append(row)
 
         # cc
         self.concurrency_control.log_object(Rows(old_data))
         response = self.concurrency_control.validate_object(Rows(old_data), transaction_id, Action.WRITE)
         if not response.allowed:
+            self.concurrency_control.end_transaction(transaction_id)
             abortion = RecoverCriteria(None, transaction_id)
             self.failure_recovery.recover(abortion)
 
+        # update the old_data
         new_data = old_data
+        corrresponding_idx = columns.index(query_tree.val["set"][0])
+        set_value = query_tree.val["set"][2:]
         for row in new_data:
-            for change in query_tree.val["set"]:
-                corrresponding_idx = columns.index(change[0])
-                row[corrresponding_idx] = change[1]
+            try: 
+                new_value = row[columns.index(set_value[0])]
+            except (ValueError, IndexError) as e:
+                leftSide = set_value[0]
+            for i, value in enumerate(set_value):
+                if i == 0 or i%2 == 1:
+                    continue
+                else:
+                    try: 
+                        modifying_value = row[columns.index(value)]
+                    except (ValueError, IndexError) as e:
+                        modifying_value = value
+                    if set_value[i-1] == '*':
+                        new_value *= modifying_value
+                    elif set_value[i-1] == '+':
+                        new_value += modifying_value
+                    elif set_value[i-1] == '/':
+                        new_value /= modifying_value
+                    elif set_value[i-1] == '-':
+                        new_value -= modifying_value
+            row[corrresponding_idx] = new_value
 
         data_pass_before = DataPass(
             "apache", table_name, columns, Rows(old_data), todo= None
@@ -441,30 +519,83 @@ class TreeHandler:
         execution_result = ExecutionResult(transaction_id= transaction_id,timestamp= datetime.now(), message= "UPDATE", data_before= data_pass_before, data_after= data_pass_after, query= "UPDATE")
         self.failure_recovery.write_log(execution_result)
 
-
-
     def _handle_delete(self, query_tree:QueryTree, transaction_id: int):
         table_name = query_tree.val["table"]
-
         columns = list(self.storage_engine.schemas[table_name].columns.keys())
+        metadata = [self.storage_engine.schemas[table_name].columns[column] for column in columns]
 
         data_retrieval = DataRetrieval(
             table=table_name,
             columns=columns,
-            conditions=[query_tree.val["conditions"]],
-            # ubah jadi kayak selection
+            conditions=[],
         )
-        result = self.storage_engine.select(data_retrieval)
+        retrieval_result = self.storage_engine.select(data_retrieval)
+
+        converted_data = []
+        for row in retrieval_result:
+            converted_row = []
+            for i, value in enumerate(row):
+                if metadata[i] == "int":
+                    converted_row.append(int(value))
+                elif metadata[i] == "float":
+                    converted_row.append(float(value))
+                else:
+                    converted_row.append(value)  # Keep as-is for other types
+            converted_data.append(converted_row)
+
+        old_data = []
+
+        for row in converted_data:
+            print(row)
+            conditions_fulfilled = False
+
+            for and_separated_condition in query_tree.val["conditions"]:
+                and_conditions_fulfilled = True
+                for condition in and_separated_condition:
+                    try: 
+                        leftSide = row[columns.index(condition[0])]
+                    except (ValueError, IndexError) as e:
+                        leftSide = condition[0]
+                    try:
+                        rightSide = row[columns.index(condition[2])]
+                    except (ValueError, IndexError) as e:
+                        rightSide = condition[2]
+                    
+                    # try convert to int
+                    if(type(rightSide) == float or type(leftSide) == float):
+                        rightSide = float(rightSide)
+                        leftSide = float(leftSide)
+                        
+                    # case: <, =, >, <=, >=
+                    # handle NULL?
+                    if condition[1] == '=':
+                        and_conditions_fulfilled = and_conditions_fulfilled and leftSide == rightSide
+                    elif condition[1] == '>':
+                        and_conditions_fulfilled = and_conditions_fulfilled and  leftSide > rightSide
+                    elif condition[1] == '<':
+                        and_conditions_fulfilled = and_conditions_fulfilled and  leftSide < rightSide
+                    elif condition[1] == '>=':
+                        and_conditions_fulfilled = and_conditions_fulfilled and  leftSide >= rightSide
+                    elif condition[1] == '<=':
+                        and_conditions_fulfilled = and_conditions_fulfilled and  leftSide <= rightSide
+                    elif condition[1] == '<>':
+                        and_conditions_fulfilled = and_conditions_fulfilled and  leftSide != rightSide
+
+                conditions_fulfilled = conditions_fulfilled or  and_conditions_fulfilled
+
+            if conditions_fulfilled:
+                old_data.append(row)
 
         # cc
-        self.concurrency_control.log_object(Rows(result))
-        response = self.concurrency_control.validate_object(Rows(result), transaction_id, Action.WRITE)
+        self.concurrency_control.log_object(Rows(old_data))
+        response = self.concurrency_control.validate_object(Rows(old_data), transaction_id, Action.WRITE)
         if not response.allowed:
+            self.concurrency_control.end_transaction(transaction_id)
             abortion = RecoverCriteria(None, transaction_id)
             self.failure_recovery.recover(abortion)
 
         data_pass_before = DataPass(
-            "apache", table_name, columns, Rows(result), todo= None
+            "apache", table_name, columns, Rows(old_data), todo= None
         )
         data_pass_after = None
         execution_result = ExecutionResult(transaction_id= transaction_id,timestamp= datetime.now(), message= "DELETE", data_before= data_pass_before, data_after= data_pass_after, query= "DELETE")
@@ -500,6 +631,7 @@ class TreeHandler:
         self.concurrency_control.log_object(Rows(result))
         response = self.concurrency_control.validate_object(Rows(result), transaction_id, Action.WRITE)
         if not response.allowed:
+            self.concurrency_control.end_transaction(transaction_id)
             abortion = RecoverCriteria(None, transaction_id)
             self.failure_recovery.recover(abortion)
 

@@ -10,6 +10,7 @@ from storageManager.core.StorageEngine import StorageEngine
 from concurrencyControl.CCWrapper import ConcurrencyControlWrapper
 from storageManager.core.BufferManager import BufferManager
 from failureRecovery.core.FailureRecovery import FailureRecovery
+from failureRecovery.functions.RecoverCriteria import RecoverCriteria
 from storageManager.core.TableSchema import TableSchema
 from storageManager.functions.DataRetrieval import DataRetrieval
 from storageManager.functions.DataWrite import DataWrite
@@ -67,7 +68,14 @@ class QueryProcessor(ServerHandler):
     def execute_query(self, query: str, transaction_id: int):
         print("Qwerty")
         try:
-            if query.lower()  == "begin transaction" or query.lower()  == "start transaction":
+            if query.lower()  == "abort":
+                if transaction_id <-1:
+                    pass
+                else:
+                    self.concurrency_control.end_transaction(transaction_id)
+                    abortion = RecoverCriteria(None, transaction_id)
+                    self.failure_recovery.recover(abortion)
+            elif query.lower()  == "begin transaction" or query.lower()  == "start transaction":
                 if transaction_id < -1:
                     print("START")
                     return {}, self.concurrency_control.begin_transaction()
@@ -79,7 +87,8 @@ class QueryProcessor(ServerHandler):
                         return {}, transaction_id
                     else:
                         self.concurrency_control.end_transaction(transaction_id)
-                        return {}, transaction_id
+                        self.failure_recovery.commit(transaction_id)
+                        return {}, -3
                 else:
                     if transaction_id >= 0:           
                         # satu perintah dalam transaction
@@ -101,7 +110,8 @@ class QueryProcessor(ServerHandler):
                         result = tree_handler.process_node(optimized_query, self.concurrency_control, transaction_id)
                         self.concurrency_control.end_transaction(transaction_id)
                         print(result)
-                        return result, -2
+                        self.failure_recovery.commit(transaction_id)
+                        return result, -3
                 
         except Exception as e:
             # Code to handle the exception
