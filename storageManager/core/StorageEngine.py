@@ -99,7 +99,8 @@ class StorageEngine:
         new_record = tuple(values)
 
         tuple_size = self.calc_tuple_size(table_name, new_record)
-        max_block_id_buffer = -1
+        max_block_id_buffer = -1     
+        
         # check in buffer first
         for (buffer_table_name, block_id), block in self.buffer_manager.buffer_pool.items():
             # print ("new record size", tuple_size)
@@ -108,29 +109,36 @@ class StorageEngine:
             if (max_block_id_buffer < block_id):
                 max_block_id_buffer = block_id
 
-            if buffer_table_name == table_name and block.is_possible_to_add(tuple_size):
-                block.add_record(DataBlock.NEW_ROW_ID, new_record)
-                self.update_index(table_name, new_record, block_id, DataBlock.NEW_ROW_ID)
+            if buffer_table_name == table_name and block.is_possible_to_add(tuple_size):  
+                highest_offset = max(block.rows.keys(), default=DataBlock.NEW_ROW_ID)
+                tuple_with_highest_offset = block.rows[highest_offset] if highest_offset is not DataBlock.NEW_ROW_ID else DataBlock.NEW_ROW_ID
+                tuple_with_highest_offset_size = self.calc_tuple_size(table_name, tuple_with_highest_offset) 
+                new_offset = highest_offset + tuple_with_highest_offset_size     
+                block.add_record(new_offset, new_record)
                 self.buffer_manager.write_block(table_name, block_id, block)
+                self.update_index(table_name, new_record, block_id, new_offset)
                 return 1
 
         # find possible block to be inserted row (traverse harddisk)
         block_ids = self.get_block_ids_for_table(table_name)
+        new_offset = 0
         for block_id in block_ids:
             block = self.buffer_manager.read_block(table_name, block_id)
-            # print ("new record size", tuple_size)
-            # print ("current block", block.block_id, "size : ", block.calculate_current_block_size())
+            highest_offset = max(block.rows.keys(), default=DataBlock.NEW_ROW_ID)
+            tuple_with_highest_offset = block.rows[highest_offset] if highest_offset is not DataBlock.NEW_ROW_ID else DataBlock.NEW_ROW_ID
+            tuple_with_highest_offset_size = self.calc_tuple_size(table_name, tuple_with_highest_offset) 
+            new_offset = highest_offset + tuple_with_highest_offset_size     
             if (block.is_possible_to_add(tuple_size)):
-                block.add_record(DataBlock.NEW_ROW_ID, new_record)
-                self.update_index(table_name, new_record, block_id, DataBlock.NEW_ROW_ID)
+                block.add_record(new_offset, new_record)
                 self.buffer_manager.write_block(table_name, block_id, block)
+                self.update_index(table_name, new_record, block_id, new_offset)
                 return 1
         
         new_block_id = max(max(block_ids) if block_ids else -1, max_block_id_buffer) + 1
         new_block = DataBlock(new_block_id, self.schemas[table_name])
-        new_block.add_record(DataBlock.NEW_ROW_ID, new_record)
-        self.update_index(table_name, new_record, new_block_id, DataBlock.NEW_ROW_ID)
+        new_block.add_record(new_offset, new_record)
         self.buffer_manager.write_block(table_name, new_block_id, new_block)
+        self.update_index(table_name, new_record, new_block_id, new_offset)
         return 1
 
     def update(self, data_write: DataWrite):
@@ -307,6 +315,17 @@ class StorageEngine:
         except Exception as e:
             print(f"Failed to save schema for table '{table_name}': {e}")
 
+    def load_all_table(self):
+        for file_name in os.listdir(self.bin_path):
+            if file_name.endswith("_schema.bin"):
+                table_name = file_name.rsplit("_schema.bin", 1)[0]
+                file_path = os.path.join(self.bin_path, file_name)
+                try:
+                    schema = SchemaManager.load_schema(file_path)
+                    self.schemas[table_name] = schema
+                except Exception as e:
+                    print(f"Failed to load schema for {file_name}: {e}")
+
     def get_stats(self, table_name: str) -> Statistic:
         schema = self.schemas[table_name]
 
@@ -370,9 +389,17 @@ class StorageEngine:
             hash_index = HashIndex()
 
             block_ids = self.get_block_ids_for_table(table)
+            # possibly unwritten data, but in buffer like after delete update or insert
+            buffer_only_blocks = [
+                block_id
+                for (_, block_id) in self.buffer_manager.buffer_pool.keys()
+                if block_id not in block_ids
+            ]
+            all_block_ids = block_ids + buffer_only_blocks
+
             col_index = list(schema.columns.keys()).index(column)
 
-            for block_id in block_ids:
+            for block_id in all_block_ids:
                 block: DataBlock = self.buffer_manager.read_block(table, block_id)
                 binary_data = block.to_bytes()
                 row_offsets = block.calculate_offsets(binary_data, len(block.rows))
@@ -390,7 +417,7 @@ class StorageEngine:
             # print("coltype" ,HashIndex.column_type_to_number(column_type))
             hash_index.save_to_file(index_file, HashIndex.column_type_to_number(column_type))
 
-            new_hash_index = HashIndex.load_from_file(index_file)
+            # new_hash_index = HashIndex.load_from_file(index_file)
             # print("=== BATAS SUCI ===")
             # new_hash_index.print_index()
             # print(f"Hash index saved to {index_file}.")
@@ -424,33 +451,19 @@ class StorageEngine:
         index_file = f"{self.bin_path}/{table_name}_hash_index_{col_name}.bin"
         hash_index = HashIndex.load_from_file(index_file)
 
-        if old_value in hash_index:
+        if hash_index.get(old_value):
             hash_index.remove(old_value, (offset, block_id))
+
         hash_index.add(new_value, (offset, block_id))
 
         hash_index.save_to_file(index_file, HashIndex.column_type_to_number(schema.columns[col_name]))
+
 
     def update_index_on_delete(self, table_name, value, col_name, block_id, offset):
         schema = self.schemas[table_name]
         index_file = f"{self.bin_path}/{table_name}_hash_index_{col_name}.bin"
         hash_index = HashIndex.load_from_file(index_file)
 
-        if value in hash_index:
+        if hash_index.get(value):
             hash_index.remove(value, (offset, block_id))
         hash_index.save_to_file(index_file, HashIndex.column_type_to_number(schema.columns[col_name]))
-
-    def load_all_table(self):
-        """
-        Load all table schemas from the disk into memory.
-        It looks for files with the `_schema.bin` suffix in the `bin` directory.
-        """
-        for file_name in os.listdir(self.bin_path):
-            if file_name.endswith("_schema.bin"):
-                table_name = file_name.replace("_schema.bin", "")
-                file_path = os.path.join(self.bin_path, file_name)
-                try:
-                    schema = SchemaManager.load_schema(file_path)
-                    self.schemas[table_name] = schema
-                    print(f"Loaded schema for table: {table_name}")
-                except Exception as e:
-                    print(f"Failed to load schema for {file_name}: {e}")
