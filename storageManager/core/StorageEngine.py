@@ -438,3 +438,19 @@ class StorageEngine:
         if value in hash_index:
             hash_index.remove(value, (offset, block_id))
         hash_index.save_to_file(index_file, HashIndex.column_type_to_number(schema.columns[col_name]))
+
+    def load_all_table(self):
+        """
+        Load all table schemas from the disk into memory.
+        It looks for files with the `_schema.bin` suffix in the `bin` directory.
+        """
+        for file_name in os.listdir(self.bin_path):
+            if file_name.endswith("_schema.bin"):
+                table_name = file_name.replace("_schema.bin", "")
+                file_path = os.path.join(self.bin_path, file_name)
+                try:
+                    schema = SchemaManager.load_schema(file_path)
+                    self.schemas[table_name] = schema
+                    print(f"Loaded schema for table: {table_name}")
+                except Exception as e:
+                    print(f"Failed to load schema for {file_name}: {e}")

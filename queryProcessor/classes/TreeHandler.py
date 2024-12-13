@@ -156,6 +156,7 @@ class TreeHandler:
 
         columns = list(self.storage_engine.schemas[table_name].columns.keys())
         header = [f"{table_name}.{column}" for column in columns]
+        metadata = [self.storage_engine.schemas[table_name].columns[column] for column in columns]
         data_retrieval = DataRetrieval(
             table=query_tree.val,
             columns= columns,
@@ -164,6 +165,20 @@ class TreeHandler:
         nonambiguous = columns
         result = self.storage_engine.select(data_retrieval)
         data = result
+        
+        converted_data = []
+        for row in data:
+            converted_row = []
+            for i, value in enumerate(row):
+                if metadata[i] == "int":
+                    converted_row.append(int(value))
+                elif metadata[i] == "float":
+                    converted_row.append(float(value))
+                else:
+                    converted_row.append(value)  # Keep as-is for other types
+            converted_data.append(converted_row)
+        
+        print(converted_data)
 
         output = {
             table_name: {
