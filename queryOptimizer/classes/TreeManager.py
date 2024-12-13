@@ -27,40 +27,33 @@ class TreeManager:
                 node.type = "projection"
                 # node.val = command
                 for column in detail:
-                    if isinstance(column, dict): 
-                        sub_tree = self.convert_tree(column)
-                        subquery_node = QueryTree("subquery", "SUBQUERY", sub_tree, node)
-                        subquery_node.childs.append(sub_tree)
-                        node.childs.append(sub_tree)
+                    table_name = self.check_attribute_table(column)
+                    if "." in column:
+                        value = column.split('.')[0]
+                        value2 = column.split('.')[1]
+                        table_name = value
+                        column = value2
+
+                    if table_col and table_col.get(table_name)!=None:
+                        column_list = table_col.get(table_name)
+                        column_list.append(column)
+                        table_col.update({table_name: column_list})
                     else:
-                        table_name = self.check_attribute_table(column)
-                        if "." in column:
-                            value = column.split('.')[0]
-                            value2 = column.split('.')[1]
-                            table_name = value
-                            column = value2
+                        table_col[table_name] = [column]
 
-                        if table_col and table_col.get(table_name)!=None:
-                            column_list = table_col.get(table_name)
+                    if table_name!=None:
+                        if node.val and node.val.get("attributes"):
+                            node.val.update({"attributes": table_col})
+                        else:
+                            node.val["attributes"] = [table_col] 
+                    else:
+                        # node.childs.append(attribute)
+                        if node.val:
+                            column_list = node.val.get("attributes")
                             column_list.append(column)
-                            table_col.update({table_name: column_list})
+                            node.val.update({"attributes": column_list})
                         else:
-                            table_col[table_name] = [column]
-                        
-
-                        if table_name!=None:
-                            if node.val and node.val.get("attributes"):
-                                node.val.update({"attributes": table_col})
-                            else:
-                                node.val["attributes"] = [table_col] 
-                        else:
-                            # node.childs.append(attribute)
-                            if node.val:
-                                column_list = node.val.get("attributes")
-                                column_list.append(column)
-                                node.val.update({"attributes": column_list})
-                            else:
-                                node.val["attributes"] = [column]    
+                            node.val["attributes"] = [column]    
                 stmt_type = command
             elif command == "UPDATE":
                 node.type = "update"
@@ -415,7 +408,7 @@ class TreeManager:
             items = list(query_detail.items())
             items.insert(1,('ORDER BY', value)) 
             query_detail = dict(items)
-           
+
         return query_detail
 
     def display_tree(self, tree: "QueryTree", depth: int):
@@ -437,5 +430,3 @@ class TreeManager:
                 found = table
                 break
         return found
-
-

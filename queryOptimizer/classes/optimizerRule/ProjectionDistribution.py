@@ -26,7 +26,7 @@ class ProjectionDistribution(OptimizerRule):
             for child in querytree.childs:
                 if child.type == "table":
                     if child.val in self.global_projection:
-                        nodes["attributes"] = [{child.val: self.global_projection[child.val]}]
+                        nodes["attributes"] = {child.val: self.global_projection[child.val]}
                         projection_node.childs.append(child)
                         selected_node = child
 
