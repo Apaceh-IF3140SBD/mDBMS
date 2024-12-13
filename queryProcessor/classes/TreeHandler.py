@@ -408,71 +408,53 @@ class TreeHandler:
         return sorted_conditions
     
     def _handle_update(self, query_tree:QueryTree, transaction_id: int):
-        table_name = query_tree.val["table_name"]
+        table_name = query_tree.val["table"][0]
 
         columns = list(self.storage_engine.schemas[table_name].columns.keys())
 
         data_retrieval = DataRetrieval(
-            table=query_tree.val["table"][0],
+            table=table_name,
             columns=columns,
-            conditions=[query_tree.val["conditions"]],
+            conditions=[query_tree.val["conditions"]], #ubah jadi sesuai ama selection
         )
-        result = self.storage_engine.select(data_retrieval)
-        header  = [column for column in columns]
-        
-        for row in result:
-            for set in query_tree.val["set"]:
-                
+        old_data = self.storage_engine.select(data_retrieval)
 
+        # cc
+        self.concurrency_control.log_object(Rows(old_data))
+        response = self.concurrency_control.validate_object(Rows(old_data), transaction_id, Action.WRITE)
+        if not response.allowed:
+            abortion = RecoverCriteria(None, transaction_id)
+            self.failure_recovery.recover(abortion)
 
-        table_name = query_tree.val["table_name"]
+        new_data = old_data
+        for row in new_data:
+            for change in query_tree.val["set"]:
+                corrresponding_idx = columns.index(change[0])
+                row[corrresponding_idx] = change[1]
 
-        data_retrieval = DataRetrieval(
-            table=query_tree.val["table_name"],
-            columns=[],
-            conditions=[],
+        data_pass_before = DataPass(
+            "apache", table_name, columns, Rows(old_data), todo= None
         )
-        result = self.storage_engine.select(data_retrieval)
-        header  = [f"{column}" for column in result["columns"]]
-
-        data = result["data"]
-
-        data_before = {
-            table_name: {
-                "header": header,
-                "data": data,
-            }
-        }
-        data_after = data_before
-
-        # minta log ke cc
-
-        # make changes
-        changes = list(query_tree.val["set"])
-
-        for change in changes:
-            conrrespoding_index = data_after[table_name]["header"].index(change[0])
-            for row in data_after[table_name]["data"]:
-                row[conrrespoding_index] = change[1]
-
-        # minta ijin ubah ke cc
-
-        # sesuailam format dan minta ubah ke failure
+        data_pass_after = DataPass(
+            "apache", table_name, columns, Rows(new_data), todo= None
+        )
+        execution_result = ExecutionResult(transaction_id= transaction_id,timestamp= datetime.now(), message= "UPDATE", data_before= data_pass_before, data_after= data_pass_after, query= "UPDATE")
+        self.failure_recovery.write_log(execution_result)
 
 
 
     def _handle_delete(self, query_tree:QueryTree, transaction_id: int):
-        table_name = query_tree.val["table_name"]
+        table_name = query_tree.val["table"]
 
         columns = list(self.storage_engine.schemas[table_name].columns.keys())
 
         data_retrieval = DataRetrieval(
-            table=query_tree.val["table"][0],
+            table=table_name,
             columns=columns,
             conditions=[query_tree.val["conditions"]],
+            # ubah jadi kayak selection
         )
         result = self.storage_engine.select(data_retrieval)
-        header  = [column for column in columns]
 
         # cc
         self.concurrency_control.log_object(Rows(result))
@@ -482,7 +464,7 @@ class TreeHandler:
             self.failure_recovery.recover(abortion)
 
         data_pass_before = DataPass(
-            "apache", table_name, columns, result, todo= None
+            "apache", table_name, columns, Rows(result), todo= None
         )
         data_pass_after = None
         execution_result = ExecutionResult(transaction_id= transaction_id,timestamp= datetime.now(), message= "DELETE", data_before= data_pass_before, data_after= data_pass_after, query= "DELETE")
@@ -503,32 +485,34 @@ class TreeHandler:
         return f"Table '{table}' created successfully."
 
     def _handle_insert(self, query_tree:QueryTree, transaction_id: int):
-        table_name = query_tree.val["table_name"]
+        table_name = query_tree.val["table"]
+
+        columns = list(self.storage_engine.schemas[table_name].columns.keys())
 
         data_retrieval = DataRetrieval(
-            table=query_tree.val["table_name"],
-            columns=[],
+            table=table_name,
+            columns = columns,
             conditions=[],
         )
         result = self.storage_engine.select(data_retrieval)
-        header  = [f"{column}" for column in result["columns"]]
 
-        data = result["data"]
+        # cc
+        self.concurrency_control.log_object(Rows(result))
+        response = self.concurrency_control.validate_object(Rows(result), transaction_id, Action.WRITE)
+        if not response.allowed:
+            abortion = RecoverCriteria(None, transaction_id)
+            self.failure_recovery.recover(abortion)
 
-        data_before = {
-            table_name: {
-                "header": header,
-                "data": data,
-            }
-        }
-        data_after = data_before
+        new_datum = [i for i in range(len(columns))]
+        for value in query_tree.val["values"]:
+            for attr in query_tree.val["attributes"]:
+                new_datum[columns.index(attr)] = value
 
-        # minta log ke cc
+        new_data = [new_datum]        
 
-        # make changes
-        for new_data in query_tree.val["new_data"]:
-            data_after[table_name]["data"].append(new_data)
-
-        # minta ijin ubah ke cc
-
-        # sesuailam format dan minta ubah ke failure
+        data_pass_before = None
+        data_pass_after = DataPass(
+            "apache", table_name, columns, Rows(new_data), todo= None
+        )
+        execution_result = ExecutionResult(transaction_id= transaction_id,timestamp= datetime.now(), message= "INSERT", data_before= data_pass_before, data_after= data_pass_after, query= "INSERT")
+        self.failure_recovery.write_log(execution_result)
