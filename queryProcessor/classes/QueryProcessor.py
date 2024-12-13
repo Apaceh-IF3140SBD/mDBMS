@@ -1,5 +1,6 @@
 from datetime import datetime
 import random
+import traceback
 # from classes.ConcurrencyControl import ConcurrencyControl
 from queryOptimizer.classes.OptimizationEngine import OptimizationEngine
 from queryProcessor.classes.TreeHandler import TreeHandler
@@ -54,6 +55,7 @@ class QueryProcessor(ServerHandler):
         except Exception as e:
             message = "Exception raised"
             print(f"Error handling client {self.client_address}: {e}")
+            traceback.print_exc()
             response_json = json.dumps(message)
             self.request.sendall(response_json.encode('utf-8'))
         finally:

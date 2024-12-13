@@ -88,7 +88,7 @@ class TreeHandler:
         print(new_data)
 
         # order
-        if query_tree.val["ORDER BY"]:
+        if "ORDER BY" in query_tree.val:
             sorted_data = new_data
             order_by_tuples = list(query_tree.val["ORDER BY"])
 
@@ -104,11 +104,11 @@ class TreeHandler:
         
 
         # LIMIT
-        if query_tree.val["LIMIT"]:
+        if "LIMIT" in query_tree.val:
             new_data["data"] = new_data["data"][:query_tree.val["LIMIT"]]
 
         # column filtering
-        if query_tree.val["attributes"]:
+        if "attributes" in query_tree.val:
 
             attributes_with_table, attributes_without_table = split_dot_contained_data(query_tree.val["attributes"])
 
@@ -141,35 +141,42 @@ class TreeHandler:
         return new_data
 
     def _handle_table(self, query_tree: QueryTree, transaction_id: int):
-        table_name = query_tree.val["table_name"]
-        table_alias = query_tree.val.get("table_alias", table_name)
+        table_name = query_tree.val
+        print("11")
+        # table_alias = query_tree.val.get("table_alias", table_name)
 
         data_retrieval = DataRetrieval(
-            table=query_tree.val["table_name"],
-            columns=[],
+            table=query_tree.val,
+            columns=['StudentID', 'FullName', 'Nickname','GPA'],
             conditions=[],
         )
-        result = self.storage_engine.select(data_retrieval)
-        header  = [f"{table_alias}.{column}" for column in result["columns"]]
+        print("12")
 
-        data = result["data"]
+        result = self.storage_engine.select(data_retrieval)
+        print("resu: ", result)
+        header  = ['StudentID', 'FullName', 'Nickname','GPA']
+
+        data = result
+        print("13")
+
+        nonambiguous = ['students.StudentID', 'students.FullName', 'students.Nickname','students.GPA']
 
         output = {
-            table_alias: {
+            table_name: {
                 "header": header,
                 "data": data,
-                "nonambiguous": result["columns"],
+                "nonambiguous": nonambiguous,
             }
         }
-
+        print("14")
         return output
 
     def _handle_table_as_rows(self, query_tree: QueryTree, transaction_id: int) -> Rows:
-        table_name = query_tree.val["table_name"]
+        table_name = query_tree.val
 
         data_retrieval = DataRetrieval(
             table=table_name,
-            columns=[], 
+            columns=['StudentID', 'FullName', 'Nickname','GPA'], 
             conditions=[],
         )
 
