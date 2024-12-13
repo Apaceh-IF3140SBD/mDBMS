@@ -111,9 +111,14 @@ class StorageEngine:
 
             if buffer_table_name == table_name and block.is_possible_to_add(tuple_size):  
                 highest_offset = max(block.rows.keys(), default=DataBlock.NEW_ROW_ID)
-                tuple_with_highest_offset = block.rows[highest_offset] if highest_offset is not DataBlock.NEW_ROW_ID else DataBlock.NEW_ROW_ID
-                tuple_with_highest_offset_size = self.calc_tuple_size(table_name, tuple_with_highest_offset) 
-                new_offset = highest_offset + tuple_with_highest_offset_size     
+                if highest_offset is not DataBlock.NEW_ROW_ID:
+                    tuple_with_highest_offset = block.rows[highest_offset]
+                    tuple_with_highest_offset_size = self.calc_tuple_size(table_name, tuple_with_highest_offset)
+                    new_offset = highest_offset + tuple_with_highest_offset_size     
+                else:
+                    tuple_with_highest_offset_size = 0
+                    highest_offset = 0
+                    new_offset = tuple_size + 8
                 block.add_record(new_offset, new_record)
                 self.buffer_manager.write_block(table_name, block_id, block)
                 self.update_index(table_name, new_record, block_id, new_offset)
@@ -124,11 +129,17 @@ class StorageEngine:
         new_offset = 0
         for block_id in block_ids:
             block = self.buffer_manager.read_block(table_name, block_id)
-            highest_offset = max(block.rows.keys(), default=DataBlock.NEW_ROW_ID)
-            tuple_with_highest_offset = block.rows[highest_offset] if highest_offset is not DataBlock.NEW_ROW_ID else DataBlock.NEW_ROW_ID
-            tuple_with_highest_offset_size = self.calc_tuple_size(table_name, tuple_with_highest_offset) 
-            new_offset = highest_offset + tuple_with_highest_offset_size     
+            highest_offset = max(block.rows.keys(), default=DataBlock.NEW_ROW_ID)        
+                
             if (block.is_possible_to_add(tuple_size)):
+                if highest_offset is not DataBlock.NEW_ROW_ID:
+                    tuple_with_highest_offset = block.rows[highest_offset]
+                    tuple_with_highest_offset_size = self.calc_tuple_size(table_name, tuple_with_highest_offset)
+                    new_offset = highest_offset + tuple_with_highest_offset_size     
+                else:
+                    tuple_with_highest_offset_size = 0
+                    highest_offset = 0
+                    new_offset = tuple_size + 8   
                 block.add_record(new_offset, new_record)
                 self.buffer_manager.write_block(table_name, block_id, block)
                 self.update_index(table_name, new_record, block_id, new_offset)
@@ -136,7 +147,7 @@ class StorageEngine:
         
         new_block_id = max(max(block_ids) if block_ids else -1, max_block_id_buffer) + 1
         new_block = DataBlock(new_block_id, self.schemas[table_name])
-        new_block.add_record(new_offset, new_record)
+        new_block.add_record(new_offset + 8, new_record)
         self.buffer_manager.write_block(table_name, new_block_id, new_block)
         self.update_index(table_name, new_record, new_block_id, new_offset)
         return 1
@@ -161,6 +172,7 @@ class StorageEngine:
 
         for block_id in all_block_ids:
             block = self.buffer_manager.read_block(table_name, block_id)
+            modified = False
 
             for offset, row in list(block.rows.items()):
                 if self.evaluate_conditions(row, conditions, table_name):
@@ -178,8 +190,10 @@ class StorageEngine:
                     
                     block.rows[offset] = tuple(updated_row)
                     affected_row += 1
+                    modified = True
 
-            self.buffer_manager.write_block(table_name, block_id, block)
+            if modified:
+                self.buffer_manager.write_block(table_name, block_id, block)
 
         return affected_row
     
