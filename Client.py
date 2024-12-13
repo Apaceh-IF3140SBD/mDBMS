@@ -16,7 +16,13 @@ class Client:
             response = client.recv(1024*1024).decode('utf-8')
             response_data = json.loads(response)
             
-            print(f"Result: {response_data}")
+            if "header" in response_data:
+                print(response_data["header"])
+            
+            if "data" in response_data:
+                data = response_data["data"]
+                for row in data:
+                    print(row)
         except Exception as e:
             print(f"Error: {e}")
         finally:
