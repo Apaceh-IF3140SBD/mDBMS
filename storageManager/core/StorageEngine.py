@@ -421,7 +421,6 @@ class StorageEngine:
                     # print("key", key)
                     # print("value", value)
                     hash_index.add(key, value)
-                    hash_index.print_index()
 
             # hash_index.print_index()
             
