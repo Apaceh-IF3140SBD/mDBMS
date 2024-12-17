@@ -15,17 +15,17 @@ def seed_storage():
     storage_engine = StorageEngine(buffer_manager)
 
     student_schema = TableSchema(
-        table_name="students",
+        table_name="student",
         columns={
             "StudentID": "int",
             "FullName": "char(50)",
-            "Nickname": "varchar(50)",
+            # "Nickname": "varchar(50)",
             "GPA": "float"
         }
     )
 
     course_schema = TableSchema(
-        table_name="courses",
+        table_name="course",
         columns={
             "CourseID": "int",
             "Year": "int",
@@ -34,18 +34,26 @@ def seed_storage():
         }
     )
 
-    student_course_schema = TableSchema(
-        table_name="students_courses_relation",
+    attends_schema = TableSchema(
+        table_name="attends",
         columns={
             "StudentID": "int",
-            "Year": "int",
-            "CourseID": "int"
+            "CourseID": "int",
         }
     )
 
+    # student_course_schema = TableSchema(
+    #     table_name="students_courses_relation",
+    #     columns={
+    #         "StudentID": "int",
+    #         "Year": "int",
+    #         "CourseID": "int"
+    #     }
+    # )
+
     storage_engine.create_table(student_schema)
     storage_engine.create_table(course_schema)
-    storage_engine.create_table(student_course_schema)
+    storage_engine.create_table(attends_schema)
 
     def generate_name():
         first_names = ['Alice', 'Bob', 'Charlie', 'Diana', 'Eve', 'Frank', 'Grace', 'Hank', 'Ivy', 'Jack']
@@ -57,26 +65,37 @@ def seed_storage():
         levels = ['101', '201', '301', '401']
         return f"{random.choice(subjects)} {random.choice(levels)}"
 
-    for student_id in range(1, 10):
+    for student_id in range(1, 50):
         full_name = generate_name()
-        nick_name = "nick_" + str(student_id)
+        # nick_name = "nick_" + str(student_id)
         gpa = round(random.uniform(2.0, 4.0), 2)
         data_write = DataWrite(
-            table="students",
+            table="student",
             columns=["StudentID", "FullName", "Nickname", "GPA"],
-            new_value=[student_id, full_name, nick_name, gpa],
+            new_value=[student_id, full_name, gpa],
             conditions=[]
         )
         storage_engine.insert(data_write)
 
-    for course_id in range(1, 3):
+    for course_id in range(1, 50):
         course_name = generate_course_name()
         year = random.randint(2010, 2024)
         course_description = f"This is a description for {course_name}."
         data_write = DataWrite(
-            table="courses",
+            table="course",
             columns=["CourseID", "Year", "CourseName", "CourseDescription"],
             new_value=[course_id, year, course_name, course_description],
+            conditions=[]
+        )
+        storage_engine.insert(data_write)
+
+    for i in range(1, 50):
+        student_id = random.randint(1, 50)
+        course_id =  random.randint(1,50)
+        data_write = DataWrite(
+            table="attends",
+            columns=["StudentID", "CourseID"],
+            new_value=[student_id, course_id],
             conditions=[]
         )
         storage_engine.insert(data_write)
