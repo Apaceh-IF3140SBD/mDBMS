@@ -1,6 +1,8 @@
 from datetime import datetime
+import copy
 from queryProcessor.classes.QueryTree import QueryTree
-from queryProcessor.classes.Rows import Rows
+# from queryProcessor.classes.Rows import Rows
+from failureRecovery.functions.Rows import Rows
 from concurrencyControl.Utils import Action, Row
 from queryProcessor.functions.Helper import remove_duplicates, split_dot_contained_data
 from concurrencyControl.CCWrapper import ConcurrencyControlWrapper
@@ -474,7 +476,8 @@ class TreeHandler:
 
             if conditions_fulfilled:
                 old_data.append(row)
-
+        
+        old_data_temp = copy.deepcopy(old_data)
         # cc
         self.concurrency_control.log_object(Row(old_data, len(old_data)), transaction_id)
         response = self.concurrency_control.validate_object(Row(old_data, len(old_data)), transaction_id, Action.WRITE)
@@ -509,9 +512,9 @@ class TreeHandler:
                     elif set_value[i-1] == '-':
                         new_value -= modifying_value
             row[corrresponding_idx] = new_value
-
+        
         data_pass_before = DataPass(
-            "apache", table_name, columns, Rows(old_data), todo= None
+            "apache", table_name, columns, Rows(old_data_temp), todo= None
         )
         data_pass_after = DataPass(
             "apache", table_name, columns, Rows(new_data), todo= None
@@ -587,6 +590,8 @@ class TreeHandler:
             if conditions_fulfilled:
                 old_data.append(row)
 
+        old_data_temp = copy.deepcopy(old_data)
+
         # cc
         self.concurrency_control.log_object(Row(old_data, len(old_data)))
         response = self.concurrency_control.validate_object(Row(old_data, len(old_data)), transaction_id, Action.WRITE)
@@ -596,7 +601,7 @@ class TreeHandler:
             self.failure_recovery.recover(abortion)
 
         data_pass_before = DataPass(
-            "apache", table_name, columns, Rows(old_data), todo= None
+            "apache", table_name, columns, Rows(old_data_temp), todo= None
         )
         data_pass_after = None
         execution_result = ExecutionResult(transaction_id= transaction_id,timestamp= datetime.now(), message= "DELETE", data_before= data_pass_before, data_after= data_pass_after, query= "DELETE")
